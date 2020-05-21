@@ -1,0 +1,12 @@
+resolver: lts-15.13
+
+packages:
+  - .
+
+extra-deps:
+  - protolude-0.3.0
+  - numhask-prelude-0.5.0
+  - backprop-0.2.6.3
+  - vinyl-0.12.2
+  - moo-1.2
+  - gray-code-0.3.1
