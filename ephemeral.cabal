@@ -19,6 +19,7 @@ library
   exposed-modules:
     Ephemeral.Funks
     Ephemeral.Heuristic
+    Ephemeral.Learning
   hs-source-dirs:
       src
   default-extensions:
