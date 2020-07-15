@@ -20,7 +20,6 @@ module Ephemeral.Learning where
 import Ephemeral.Funks
 import Ephemeral.Heuristic
 import NumHask.Prelude
-import Numeric.Backprop
 
 newtype Experience f e = Experience {unexperience :: (Foldable f) => f e}
 
