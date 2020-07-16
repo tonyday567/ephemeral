@@ -6,6 +6,6 @@ packages:
 extra-deps:
   - numhask-0.6.0
   - backprop-0.2.6.4
-  - vinyl-0.12.3
+  - vinyl-0.13.0
   - moo-1.2
   - gray-code-0.3.1
