@@ -22,15 +22,11 @@ import Data.Profunctor
 
 A computer program is said to learn from experience E with respect to some task T and some performance measure P, if its performance on T, as measured by P, improves with experience E. ~ Tom Mitchell
 
-The thing about Haskell types I like is how they help me think.
-
-So the quote above looks like this:
-
 -}
 
--- | to learn, is to use experience to change the performance of a task.
+-- | learning is to use experience to change the performance of a task.
 newtype Learn f e p =
-  Learn { change :: (Foldable f) => Experience f e -> Task e p -> Task e p }
+  Learn { change :: Foldable f => Experience f e -> Task e p -> Task e p }
 
 -- | An experience is an accumulation of e, the carrier of some underlying grammar.
 newtype Experience f e = Experience { set :: f e }
@@ -45,7 +41,7 @@ newtype Task e p = Task { measure :: e -> p } deriving (Profunctor)
 -- | To progress, is to transduce a Task
 newtype Progress e p = Progress { step :: e -> Task e p -> Task e p}
 
--- | to learn, is to make Progress from an Experience.
+-- | to learn, is to make Progress (good, bad or ugly) from an Experience.
 learn :: Progress e p -> Learn f e p
 learn p = Learn $ \(Experience e) task -> foldr (step p) task e
 
@@ -63,9 +59,13 @@ improve progress es task =
     p = measure task <$> set es
     p' = measure task' <$> set es
 
+data LearningType a c =
+  Regression {fit :: (Ord a, Num a) => Params a} |
+  Classification { enumerate :: (Eq c) => Params c}
+
 {-
 
-If we take a linear regression, with parameters of alpha and betas unified as (a:bs), gives a carrier experience set of ([a], a). We take an [a] (the dependent variables) and produce an a, our guess as to the independent variable. We then take the second element of the tuple and know it is the underlying true answer to our guess. The difference between our guess and the correct answer is our measure, with the closer to zero the better.
+If we take a linear regression, with parameters of alpha and betas unified as (a:bs), gives a carrier e of ([a], a). We take an [a] (the dependent variables) and produce an a, our guess as to the independent variable. We then take the second element of the tuple and know it is the underlying true answer to our guess. The difference between our guess and the correct answer is our measure, with the closer to zero the better.
 
 -}
 
@@ -76,6 +76,10 @@ error (Params bs) (es, y) = sum (zipWith (+) bs (one:es)) - y
 
 errors :: (Functor f, Ring a) => Params a -> Experience f ([a],a) -> f a
 errors p (Experience es) = error p <$> es
+
+
+
+-- population level
 
 newtype Population f a = Population { individuals :: f (Params a) } deriving (Generic)
 
@@ -95,8 +99,6 @@ value (Population ps) (Experience es) f = f $ traverse (\p -> error p <$> es) ps
 -- They are natural transformations, with a carrier phenotype.
 newtype Heuristic f g a = Heuristic { evolve :: Population f a -> Population g a }
 
-
-{-
 -- cofunctor, like an average
 type Neighbourhood = Heuristic Identity
 
@@ -106,12 +108,6 @@ type Mutation = Heuristic Identity Identity
 -- crossover is foldable
 type Crossover f = Heuristic f Identity
 
--- an individua can also be a carrier of the algebra
+-- an individual can also be a carrier of the algebra
 type Individual a = Population Identity a
 
-
-data PredictionType a c =
-  Regression {fit :: (Ord a, Num a) => Params a} |
-  Classification { enumerate :: (Eq c) => Params c}
-
--}
