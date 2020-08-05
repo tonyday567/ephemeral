@@ -1,7 +1,7 @@
 module Ephemeral.Funks where
 
 import NumHask.Prelude
-import qualified Control.Foldl as L
+import Data.Mealy
 
 sphere :: Double -> Double
 sphere x = (x - 1.0)*(x - 1.0)
@@ -9,20 +9,8 @@ sphere x = (x - 1.0)*(x - 1.0)
 lSphere :: [Double] -> Double
 lSphere = sum . fmap sphere
 
-fSphere :: L.Fold Double Double
-fSphere = L.Fold (\x a -> x + (a - 1.0)*(a - 1.0)) 0.0 id
-
--- griew function
-data Griew = Griew {_v1::Double, _v2::Double, _i1::Double}
-
-fGriew :: L.Fold Double Double
-fGriew = L.Fold (\(Griew v1 v2 i1) a ->
-                Griew
-                (v1+(a - 100.0) * (a - 100.0))
-                (v2 + cos ((a - 100.0)/sqrt(i1+1)))
-                (i1+1.0))
-         (Griew 0.0 1.0 0.0)
-         (\(Griew v1 v2 _) -> v1 / (4000.0 - v2 + 1.0))
+fSphere :: Mealy Double Double
+fSphere = M (\a -> (a - 1.0)*(a - 1.0)) (\x a -> x + (a - 1.0)*(a - 1.0)) id
 
 -- shekel function
 shekelA :: [[Double]]
@@ -92,7 +80,7 @@ shekelC = [
  0.326];
 
 shekel :: [Double] -> Double
-shekel xs = -(L.fold L.sum $ fmap (1.0/) (zipWith (+) (sp xs) shekelC))
+shekel xs = -(sum $ fmap (1.0/) (zipWith (+) (sp xs) shekelC))
           where
-             sp a = L.fold L.sum <$> fmap (**2) <$> zipWith ($) ((-) <$> a) <$> shekelA
+             sp a = sum . fmap (**2) . zipWith ($) ((-) <$> a) <$> shekelA
 
