@@ -4,7 +4,6 @@
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RankNTypes #-}
 
 {- |
@@ -77,16 +76,13 @@ error (Params bs) (es, y) = sum (zipWith (+) bs (one:es)) - y
 errors :: (Functor f, Ring a) => Params a -> Experience f ([a],a) -> f a
 errors p (Experience es) = error p <$> es
 
-
-
 -- population level
-
-newtype Population f a = Population { individuals :: f (Params a) } deriving (Generic)
+newtype Population f a = Population { individuals :: f a } deriving (Generic)
 
 -- | The value of a population, for each experience.
 -- value :: Population f a -> Experience g ([a], a) -> g a
 value :: (Traversable p, Traversable e, Applicative e, Ring a) =>
-  Population p a ->
+  Population p (Params a) ->
   Experience e ([a], a) ->
   (e (p a) -> p a) ->
   p a

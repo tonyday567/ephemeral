@@ -4,6 +4,9 @@ packages:
   - .
 
 extra-deps:
+  # numhask-backprop-0.0.1
+  - git: https://github.com/tonyday567/numhask-backprop.git
+    commit: 972c26b83fbff75438b9276a6e8a801bf100e17f
   - backprop-0.2.6.4
   - box-0.6.0
   - box-csv-0.0.2
