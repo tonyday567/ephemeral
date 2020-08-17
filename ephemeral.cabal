@@ -35,6 +35,7 @@ library
     box-csv >= 0.0.1 && < 0.1,
     box-socket >= 0.0.1 && < 0.1,
     chart-svg >= 0.1.1 && < 0.2,
+    chart-svg-various >= 0.0.2 && < 0.1,
     concurrency >= 1.11,
     lens,
     lucid,
