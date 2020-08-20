@@ -35,8 +35,8 @@ rvp n r = do
   replicateM n (uniformP g r)
 
 -- | testing
-scratch :: ([Chart Double], [Hud Double]) -> IO ()
-scratch (cs, hs) = writeFile "other/scratch.svg" $ renderHudOptionsChart defaultSvgOptions defaultHudOptions hs cs
+scratch :: (HudOptions, [Hud Double], [Chart Double]) -> IO ()
+scratch (ho, hs, cs) = writeFile "other/scratch.svg" $ renderHudOptionsChart defaultSvgOptions ho hs cs
 
 -- | chart a surface
 surface :: Int -> Rect Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> (HudOptions, [Hud Double], [Chart Double])
@@ -44,9 +44,15 @@ surface grain r f = (\(cs,hs) -> (defaultHudOptions,hs,cs)) $
   pixelfl (evalBP f) (PixelOptions defaultPixelStyle (Point grain grain) r)
   (defaultPixelLegendOptions mempty)
 
+-- | chart a surface
+surface_ :: Int -> Rect Double -> (Point Double -> Double) -> (HudOptions, [Hud Double], [Chart Double])
+surface_ grain r f = (\(cs,hs) -> (defaultHudOptions,hs,cs)) $
+  pixelfl f (PixelOptions defaultPixelStyle (Point grain grain) r)
+  (defaultPixelLegendOptions mempty)
+
 -- | climb a gradient by taking a fixed step, rejecting worse points.
-climb :: Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> Point Double -> Point Double
-climb r f p = bool p p' (v' > fst bp)
+climbGradient :: Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> Point Double -> Point Double
+climbGradient r f p = bool p p' (v' > fst bp)
   where
     bp :: (Double, Point Double)
     bp = backprop f p
@@ -67,10 +73,10 @@ shekelc :: Int -> Rect Double -> (HudOptions, [Hud Double], [Chart Double])
 shekelc grain r = surface grain r (shekp . norm')
 
 -- | chart latest population
-next :: (Monad m) => Int -> Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> StateT [Point Double] m (HudOptions, [Hud Double], [Chart Double])
-next g r f = do
+nextShekel :: (Monad m) => Int -> Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> StateT [Point Double] m (HudOptions, [Hud Double], [Chart Double])
+nextShekel g r f = do
   ps <- get
-  let ps' = climb r f <$> ps
+  let ps' = climbGradient r f <$> ps
   put ps'
   pure (ho, hs, cs <> chartSnail ps')
     where
@@ -79,7 +85,7 @@ next g r f = do
 
 nextE :: (Monad m) => Int -> Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> Emitter (StateT [Point Double] m) (HudOptions, [Hud Double], [Chart Double])
 nextE g gap f = Emitter $ do
-  n <- next g gap f
+  n <- nextShekel g gap f
   pure $ Just n
 
 emitNextChart :: (MonadConc m) => Int -> Int -> Double -> (forall s. (Reifies s W) => BVar s (Point Double) -> BVar s Double) -> [Point Double] ->
