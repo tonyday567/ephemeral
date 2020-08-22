@@ -129,12 +129,14 @@ mealyp r r' qs' = Point <$> sig <*> (ma r <<< sig)
 -- | take a point and look up 2 dim parameter signal
 --
 -- conversion from quantile to signal given a parameter set
+-- requires the last quantile cut to be 1
 applyp :: MarketState Double -> Point Double -> Double
 applyp ms (Point x y) = (ms ^. #params) List.!! cut
   where
-    cutx = cutI (ms ^. #qs) x
-    cuty = cutI (ms ^. #qs) y
-    cut = cutx + length (ms ^. #qs) * cuty
+    cutx = cutI qs' x
+    cuty = cutI qs' y
+    cut = cutx + length qs' * cuty
+    qs' = ms ^. #qs <> [1]
 
 -- | perfms takes the raw return series, and a MarketState, and outputs the accumulated return of applying the marketstate to the series.
 --
@@ -154,15 +156,15 @@ data MarketState a = MarketState
     qest :: a,
     -- | parameters transduce a signal
     params :: [a],
-    -- | quantile cuts
+    -- | quantile cuts (1 is the last cut that is baked in)
     qs :: [a]
   } deriving (Eq, Show, Generic)
 
 defaultMarketState :: MarketState Double
-defaultMarketState = MarketState 0.99 0.99 [0,0,0,0.5] [0.5,1]
+defaultMarketState = MarketState 0.9 0.9 [0.5,-0.5,0.5,-0.5] [0.8]
 
 rangeMS :: MarketState (Range Double)
-rangeMS = MarketState (Range 0.9 1) (Range 0.9 1) [one, one, one, one] [((+0.5) <$> one), ((+0.5) <$> one)]
+rangeMS = MarketState (Range 0.9 1) (Range 0.9 1) [one, one, one, one] [((+0.5) <$> one)]
 
 -- | convert from a MarketState to a list
 --
@@ -210,8 +212,8 @@ tweakpMS :: Point Int -> Point Double -> MarketState Double -> MarketState Doubl
 tweakpMS (Point x' y') (Point x y) ms = tweakiMS y' y (tweakiMS x' x ms)
 
 -- | Select a change in point and climb by taking a fixed step, rejecting worse points.
-climbR :: (Monad m, PrimMonad m) => Gen (PrimState m) -> Double -> (Point Double -> Double) -> Point Double -> m (Point Double)
-climbR g step f p = do
+climbP :: (Monad m, PrimMonad m) => Gen (PrimState m) -> Double -> (Point Double -> Double) -> Point Double -> m (Point Double)
+climbP g step f p = do
   d <- uniformP g one
   let p' = p + ((step *) <$> normp d)
   pure $ bool p p' (f p' > f p)
@@ -220,8 +222,73 @@ climbR g step f p = do
 marketSurface :: [Double] -> Point Int -> Int -> MarketState Double -> (HudOptions, [Hud Double], [Chart Double])
 marketSurface xs i@(Point ix' iy) grain ms = surface_ grain (Ranges ((snd $ fromMS_ rangeMS)!!ix') ((snd $ fromMS_ rangeMS)!!iy)) (perfp xs i ms)
 
+-- | Select a change in the MarketState list and climb by taking a fixed step, rejecting worse points.
+climbList :: (Monad m, PrimMonad m) => Gen (PrimState m) -> Double -> Int -> ([Double] -> Double) -> [Double] -> m [Double]
+climbList g step l f p = do
+  xs <- uniformList g l
+  let p' = zipWith (+) p ((step *) <$> normList xs)
+  pure $ bool p p' (f p' > f p)
+
+-- | Generate a random list of signals
+uniformList :: (PrimMonad m, Variate a, FromRational a) => Gen (PrimState m) -> Int -> m [a]
+uniformList g l = replicateM l (uniformR (-0.5, 0.5) g)
+
+-- | climbing requires a distance metric
+distanceList :: ExpField a => [a] -> a
+distanceList xs = sqrt . sum $ (^ (2::Int)) <$> xs
+
+normList :: ExpField a => [a] -> [a]
+normList xs = fmap (/distanceList xs) xs
+
+initialPop :: (PrimMonad m, Variate a, FromRational a) => Int -> m [[a]]
+initialPop n = do
+  g <- create
+  replicateM n (uniformList g 8)
+
+nextPop :: Gen (PrimState IO) -> [Double] -> StateT [[Double]] IO ()
+nextPop g xs = do
+  pop <- get
+  pop' <- lift $ sequence $ climbList g 0.01 7 (perfms xs . (\x -> toMS_ ((4,1), x))) <$> pop
+  put pop'
 
 
+chartMS :: [[Double]] -> [[[Chart Double]]]
+chartMS xss =
+  (\d2 ->
+     (\d1 -> ([Chart (GlyphA defaultGlyphStyle)
+             ((\xs -> PointXY $ selectDim xs (Point d1 d2)) <$> xss)])) <$>
+     [0..7]) <$>
+  [0..7]
+
+hudAndChart :: [Hud Double] -> [Chart Double] -> [Chart Double]
+hudAndChart hs cs = runHud (fixRect $ dataBox cs) hs cs
+
+stackedChart :: [[[Chart Double]]] -> [Chart Double]
+stackedChart css = (hscols <>) $ vert 0.1 rows
+  where
+    rows :: [[Chart Double]]
+    rows = ([hsrows] <>) (hori 0.01 <$> css)
+    hsrows :: [Chart Double]
+    hsrows = mconcat $ (\(h, c) -> runHudWith one one h (c <> [Chart BlankA [RectXY one]])) <$> ((\x -> makeHud (Rect (-0.5) 0.5 (x) ((x+1))) (defaultHudOptions & #hudAxes .~ [defaultAxisOptions & #place .~ PlaceLeft])) <$> [0..1])
+    hscols = mconcat $ (\(h, c) -> runHudWith one one h (c <> [Chart BlankA [RectXY one]])) <$> ((\x -> makeHud (Rect x (x+1) (-0.5) 0.5) (defaultHudOptions & #hudAxes .~ [defaultAxisOptions & #place .~ PlaceLeft])) <$> [0..1])
+
+testChart :: IO ()
+testChart = do
+  pop <- initialPop 1
+  let cs = stackedChart $ chartMS pop
+  scratch $ (mempty, [], cs)
+
+selectDim :: [Double] -> Point Int -> Point Double
+selectDim xs (Point x y) = Point (xs!!x) (xs!!y)
 
 
+trimmings :: (HudOptions, [Hud Double], [Chart Double]) -> [Chart Double]
+trimmings (ho, hs, cs) = runHud datarect (hs<>hoh) (cs<>hoc)
+  where
+    datarect = fixRect $ styleBoxes cs
+    (hoh, hoc) = makeHud datarect ho
+
+-- | testing
+scratch' :: (HudOptions, [Hud Double], [Chart Double]) -> IO ()
+scratch' = writeFile "other/scratch.svg" . renderCharts . trimmings
 

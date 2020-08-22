@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RebindableSyntax #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 -- | https://en.wikipedia.org/wiki/Shekel_function
 module Ephemeral.Shekel where
