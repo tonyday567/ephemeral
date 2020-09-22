@@ -161,7 +161,7 @@ data MarketState a = MarketState
   } deriving (Eq, Show, Generic)
 
 defaultMarketState :: MarketState Double
-defaultMarketState = MarketState 0.9 0.9 [0.5,-0.5,0.5,-0.5] [0.8]
+defaultMarketState = MarketState 0.9 0.9 [0.5,0,0.5,-0.5] [0.8]
 
 rangeMS :: MarketState (Range Double)
 rangeMS = MarketState (Range 0.9 1) (Range 0.9 1) [one, one, one, one] [((+0.5) <$> one)]
@@ -219,6 +219,9 @@ climbP g step f p = do
   pure $ bool p p' (f p' > f p)
 
 -- | surface chart over two dimensions
+--
+-- > xs <- fmap snd <$> makeReturnSeries 1000
+-- > scratch $ marketSurface xs (Point 0 1) 10 defaultMarketState
 marketSurface :: [Double] -> Point Int -> Int -> MarketState Double -> (HudOptions, [Hud Double], [Chart Double])
 marketSurface xs i@(Point ix' iy) grain ms = surface_ grain (Ranges ((snd $ fromMS_ rangeMS)!!ix') ((snd $ fromMS_ rangeMS)!!iy)) (perfp xs i ms)
 
@@ -263,24 +266,39 @@ chartMS xss =
 hudAndChart :: [Hud Double] -> [Chart Double] -> [Chart Double]
 hudAndChart hs cs = runHud (fixRect $ dataBox cs) hs cs
 
-stackedChart :: [[[Chart Double]]] -> [Chart Double]
-stackedChart css = (hscols <>) $ vert 0.1 rows
+stackedChart :: Double -> [[[Chart Double]]] -> [Chart Double]
+stackedChart gap css = vert gap rows
   where
-    rows :: [[Chart Double]]
-    rows = ([hsrows] <>) (hori 0.01 <$> css)
-    hsrows :: [Chart Double]
-    hsrows = mconcat $ (\(h, c) -> runHudWith one one h (c <> [Chart BlankA [RectXY one]])) <$> ((\x -> makeHud (Rect (-0.5) 0.5 (x) ((x+1))) (defaultHudOptions & #hudAxes .~ [defaultAxisOptions & #place .~ PlaceLeft])) <$> [0..1])
-    hscols = mconcat $ (\(h, c) -> runHudWith one one h (c <> [Chart BlankA [RectXY one]])) <$> ((\x -> makeHud (Rect x (x+1) (-0.5) 0.5) (defaultHudOptions & #hudAxes .~ [defaultAxisOptions & #place .~ PlaceLeft])) <$> [0..1])
+    rows = (hori gap <$> css)
 
+
+stackedChart' :: Double -> HudOptions -> HudOptions -> [Text] -> [[[Chart Double]]] -> [Chart Double]
+stackedChart' gap rowho colho ts css = vert gap rows
+  where
+    rows = (hori gap <$> css')
+    css' = fmap (\c -> trimmings (defaultHudOptions & #hudAxes %~ fmap (#abar .~ Nothing & #adjust .~ Nothing & #atick . #tick .~ Nothing), [], c)) <$> css
+
+{-
 testChart :: IO ()
 testChart = do
   pop <- initialPop 1
   let cs = stackedChart $ chartMS pop
   scratch $ (mempty, [], cs)
 
+-}
+
 selectDim :: [Double] -> Point Int -> Point Double
 selectDim xs (Point x y) = Point (xs!!x) (xs!!y)
 
+t1 :: Int -> Double -> IO ()
+t1 n gap = do
+  let cs = Chart (GlyphA defaultGlyphStyle) ((\x -> PointXY (Point (fromIntegral x) (fromIntegral x))) <$> [0..10::Int])
+  -- let cl = pixelLegendChart one (defaultPixelLegendOptions "title")
+  --let hs = legendHud defaultLegendOptions cl
+  let cs' = trimmings (scaleHudOptions (recip . fromIntegral $ n) defaultHudOptions, [], [cs])
+  let css' = replicate n (replicate n cs')
+  let css'' = stackedChart gap css'
+  scratch $ (mempty, [], css'')
 
 trimmings :: (HudOptions, [Hud Double], [Chart Double]) -> [Chart Double]
 trimmings (ho, hs, cs) = runHud datarect (hs<>hoh) (cs<>hoc)
@@ -291,4 +309,51 @@ trimmings (ho, hs, cs) = runHud datarect (hs<>hoh) (cs<>hoc)
 -- | testing
 scratch' :: (HudOptions, [Hud Double], [Chart Double]) -> IO ()
 scratch' = writeFile "other/scratch.svg" . renderCharts . trimmings
+
+scaleHudOptions :: Double -> HudOptions -> HudOptions
+scaleHudOptions x ho =
+  ho &
+  (#hudCanvas %~ fmap (scaleRectStyle x)) &
+  (#hudTitles %~ fmap (scaleTitle x)) &
+  (#hudAxes %~ fmap (scaleAxis x)) &
+  (#hudLegend %~ fmap (first (scaleLegendOptions x) . second (fmap (first (scaleAnnotation x)))))
+
+scaleAxis :: Double -> AxisOptions -> AxisOptions
+scaleAxis x ao =
+  ao &
+  #abar %~ fmap (scaleBar x) &
+  -- #adjust %~ fmap (scaleAdjustments x) &
+  #atick %~ scaleTick x
+
+scaleTitle :: Double -> Title -> Title
+scaleTitle x t = t & ((#style %~ (#size %~ (*x)))) & (((#buff %~ (*x))))
+
+scaleRectStyle :: Double -> RectStyle -> RectStyle
+scaleRectStyle x rs = rs & (#borderSize %~ (*x))
+
+scaleBar :: Double -> Bar -> Bar
+scaleBar x b = b & (#rstyle %~ scaleRectStyle x) & (#wid %~ (*x)) & (#buff %~ (*x))
+
+scaleAdjustments :: Double -> Adjustments -> Adjustments
+scaleAdjustments x a = a & (#maxXRatio %~ (*x)) & (#maxYRatio %~ (*x)) & (#angledRatio %~ (*x))
+
+scaleTick :: Double -> Tick -> Tick
+scaleTick x t =
+  t &
+  (#gtick %~ fmap (first ((#size %~ (*x)) . (#borderSize %~ (*x))) . second (*x))) &
+  (#ttick %~ fmap (first (#size %~ (*x)) . second (*x))) &
+  (#ltick %~ fmap (first (#width %~ (*x)) . second (*x)))
+
+scaleLegendOptions :: Double -> LegendOptions -> LegendOptions
+scaleLegendOptions x lo =
+  lo &
+  #lscale %~ (*x)
+
+scaleAnnotation :: Double -> Annotation -> Annotation
+scaleAnnotation x (LineA ls) = LineA (ls & #width %~ (*x))
+scaleAnnotation x (TextA ts t) = TextA (ts & #size %~ (*x)) t
+scaleAnnotation x (GlyphA gs) = GlyphA (gs & #size %~ (*x) & #borderSize %~ (*x))
+scaleAnnotation x (RectA rs) = RectA (rs & #borderSize %~ (*x))
+scaleAnnotation _ BlankA = BlankA
+scaleAnnotation x (PixelA ps) = PixelA (ps & #pixelRectStyle . #borderSize %~ (*x))
 
