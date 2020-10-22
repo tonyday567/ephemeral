@@ -5,16 +5,27 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
--- | https://en.wikipedia.org/wiki/Shekel_function
-module Ephemeral.Shekel where
+-- | Function with a tricky shape useful for testing.
+--
+-- See <https://en.wikipedia.org/wiki/Shekel_function>
+--
+module Ephemeral.Shekel
+  ( shekel,
+    shekelp
+  ) where
 
-import Chart
+import Ephemeral.Point
 import NumHask.Prelude as P
 import Numeric.Backprop
-import NumHask.Backprop ()
-import Lens.Micro
+import qualified Prelude.Backprop as B
 
--- shekel function
+-- $setup
+--
+-- >>> :set -XOverloadedStrings
+-- >>> :set -XOverloadedLabels
+-- >>> import NumHask.Prelude as P
+
+-- underlying shekel function constants
 sa :: [[Double]]
 sa =
   [ [9.681, 0.667, 4.783, 9.095, 3.517, 9.325, 6.544, 0.211, 5.122, 2.020],
@@ -83,83 +94,49 @@ sc =
     0.326
   ]
 
-shek_ :: [Double] -> Double
-shek_ = sinv_ . sdiff_
-
-sdiff_ :: [Double] -> [Double]
-sdiff_ xs = fmap sum . fmap (fmap (**2)) . fmap (\r -> zipWith (-) xs r) $ sa
-
-sinv_ :: [Double] -> Double
-sinv_ xs = sum $ fmap (** -1) (zipWith (+) xs sc)
-
+-- | sdiff_ xs = fmap sum . fmap (fmap (**2)) . fmap (\r -> zipWith (-) xs r) $ sa
+--
 sdiff :: (Reifies s W) => BVar s [Double] -> BVar s [Double]
 sdiff xs = collectVar $
   fmap sum $ fmap (fmap (^(2::Int))) $ (\r -> zipWith (-) (sequenceVar xs) r) <$> (sequenceVar . constVar <$> sa)
 
+-- | sinv_ xs = sum $ fmap (** -1) (zipWith (+) xs sc)
+--
 sinv :: (Reifies s W) => BVar s [Double] -> BVar s Double
 sinv xs = sum $ fmap (P.one/) (zipWith (+) (sequenceVar xs) (constVar <$> sc))
 
-shek :: (Reifies s W) => BVar s [Double] -> BVar s Double
-shek = sinv . sdiff
+-- | Roughly translate the shekel function so tha the interesting stuff is in 'Range' (-0.5) 0.5
+--
+toUnit ::
+  (Backprop a, Distributive a, Reifies s W, FromRational a) =>
+  BVar s [a] -> BVar s [a]
+toUnit xs = B.fmap (\x -> (constVar 10.0 * (x + constVar 0.5))) xs
 
-toPoint :: (Reifies s W) => BVar s [Double] -> BVar s (Point Double)
-toPoint = isoVar (\xs -> case xs of
-                     [] -> P.zero
-                     [x] -> Point x P.zero
-                     (x:y:_) -> Point x y)
-           (\(Point x y) -> [x,y])
+-- | The shekel function applied to a list and roughly normalised to Range (-0.5) 0.5
+--
+-- >>> backprop shekel [0.302, 0.412, 0.5]
+-- (0.6247750745580744,[-0.281675070331214,-1.454057727890711,-1.791642502566598])
+--
+shekel :: (Reifies s W) => BVar s [Double] -> BVar s Double
+shekel = sinv . sdiff . toUnit
 
-fromPoint :: (Reifies s W) => BVar s (Point Double) -> BVar s [Double]
-fromPoint =
-  isoVar
-  (\(Point x y) -> [x,y])
-  (\xs -> case xs of
-           [] -> P.zero
-           [x] -> Point x P.zero
-           (x:y:_) -> Point x y)
-
-shekp :: (Reifies s W) => BVar s (Point Double) -> BVar s Double
-shekp p = shek (fromPoint p)
-
-instance (Ring a) => Backprop (Point a) where
-  zero _ = P.zero
-  add = (+)
-  one _ = P.one
-
-t2p :: (Backprop a, Reifies s W) => BVar s (a, a) -> BVar s (Point a)
-t2p =
-  isoVar
-  (\(x,y) -> Point x y)
-  (\(Point x y) -> (x,y))
-
-p2t :: (Subtractive a, Distributive a, Reifies s W) => BVar s (Point a) -> BVar s (a, a)
-p2t =
-  isoVar
-  (\(Point x y) -> (x,y))
-  (\(x,y) -> Point x y)
+-- | The shekel function applied to a Point
+--
+-- >>>  backprop shekelp (Point 0.302 0.412)
+-- (12.04779559130664,Point 8.010284055412848 51.91474353133358)
+--
+-- >>> import Chart
+-- >>> import Numeric.Backprop
+-- >>> import Ephemeral.Chart (surface)
+-- >>> import Ephemeral.Shekel (shekelp)
+-- >>> let (cs,hs) = surface 50 P.one (evalBP shekelp)
+-- >>> writeFile "other/shekelp.svg" $ renderHudOptionsChart defaultSvgOptions defaultHudOptions hs cs
+--
+-- ![shekelp surface](other/shekelp.svg)
+--
+shekelp :: (Reifies s W) => BVar s (Point Double) -> BVar s Double
+shekelp = shekel . fromPoint
 
 
--- * shekel specific
 
-norm_ :: (FromRational a, Multiplicative a, Additive a) => Point a -> Point a
-norm_ (Point x y) = Point (10.0 * (x + 0.5)) (10.0 * (y + 0.5))
-
--- | Normalise the shekel function to the unit rectangle.
-norm' :: (Backprop a, Distributive a, Subtractive a, Reifies s W, FromRational a) => BVar s (Point a) -> BVar s (Point a)
-norm' p =
-  p2t p &
-  _1 %~~ (\x -> (constVar 10.0 * (x + constVar 0.5))) &
-  _2 %~~ (\x -> (constVar 10.0 * (x + constVar 0.5))) &
-  t2p
-
-
--- > scratch $ first (<> gradLine 0.0005 (gradShekel 10 P.one)) $ shekelc 10 P.one
-gradShekel :: Int -> Rect Double -> [(Point Double, Point Double)]
-gradShekel grain r =
-  (\p@(Point x y) ->
-     ((Point x y), gradBP (shekp . norm') p)) <$>
-  grid MidPos r (Point grain grain)
-
-gradLine :: Double -> [(Point Double, Point Double)] -> [Chart Double]
-gradLine s ps = (\(p,p') -> Chart (LineA (defaultLineStyle & #width .~ 0.005 & #color .~ black)) [PointXY p, PointXY (p + fmap (s *) p')]) <$> ps
 
