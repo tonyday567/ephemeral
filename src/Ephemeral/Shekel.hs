@@ -1,7 +1,10 @@
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
@@ -11,19 +14,23 @@
 --
 module Ephemeral.Shekel
   ( shekel,
-    shekelp
+    shekelp,
   ) where
 
 import Ephemeral.Point
 import NumHask.Prelude as P
 import Numeric.Backprop
 import qualified Prelude.Backprop as B
+import Chart
+import Chart.Various
 
 -- $setup
 --
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLabels
 -- >>> import NumHask.Prelude as P
+-- >>> import Chart
+-- >>> import Chart.Various
 
 -- underlying shekel function constants
 sa :: [[Double]]
@@ -98,7 +105,8 @@ sc =
 --
 sdiff :: (Reifies s W) => BVar s [Double] -> BVar s [Double]
 sdiff xs = collectVar $
-  fmap sum $ fmap (fmap (^(2::Int))) $ (\r -> zipWith (-) (sequenceVar xs) r) <$> (sequenceVar . constVar <$> sa)
+  fmap sum $ fmap (fmap (^2)) $
+  (\r -> zipWith (-) (sequenceVar xs) r) <$> (sequenceVar . constVar <$> sa)
 
 -- | sinv_ xs = sum $ fmap (** -1) (zipWith (+) xs sc)
 --
@@ -125,18 +133,8 @@ shekel = sinv . sdiff . toUnit
 -- >>>  backprop shekelp (Point 0.302 0.412)
 -- (12.04779559130664,Point 8.010284055412848 51.91474353133358)
 --
--- >>> import Chart
--- >>> import Numeric.Backprop
--- >>> import Ephemeral.Chart (surface)
--- >>> import Ephemeral.Shekel (shekelp)
--- >>> let (cs,hs) = surface 50 P.one (evalBP shekelp)
--- >>> writeFile "other/shekelp.svg" $ renderHudOptionsChart defaultSvgOptions defaultHudOptions hs cs
+-- >>> writeChartSvg "other/shekel.svg" $ surfaceg "shekel" (Point 100 100) (Point 20 20) P.one (backprop shekelp)
 --
--- ![shekelp surface](other/shekelp.svg)
---
+-- ![shekel example](other/shekel.svg)
 shekelp :: (Reifies s W) => BVar s (Point Double) -> BVar s Double
 shekelp = shekel . fromPoint
-
-
-
-

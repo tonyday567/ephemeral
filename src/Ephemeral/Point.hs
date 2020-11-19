@@ -16,6 +16,9 @@ module Ephemeral.Point
     toTuple,
     uniformPoint,
     uniformPoints,
+    distancep,
+    normp,
+    dir,
   ) where
 
 import NumHask.Prelude as P
@@ -85,21 +88,15 @@ toTuple =
   (\(Point x y) -> (x,y))
   (\(x,y) -> Point x y)
 
--- | grid of the gradient of a function within a 'Rect'
---
--- > scratch $ first (<> gradientLine 0.0005 (gridGradient 10 P.one)) $ shekelc 10 P.one
--- gridGradient :: Int -> Rect Double -> [(Point Double, Point Double)]
+-- | distance metric
+distancep :: ExpField a => Point a -> a
+distancep (Point x y) = sqrt (x^2 + y^2)
 
-{-
-gridGradient grain r f =
-  (\p@(Point x y) ->
-     ((Point x y), gradBP f p)) <$>
-  grid MidPos r (Point grain grain)
+-- | norm of a 'Point'
+normp :: ExpField a => Point a -> Point a
+normp p = fmap (/distancep p) p
 
--}
+-- | direction, in degrees
+dir :: Point Double -> Double
+dir (Point x y) = -1 * atan2 y x * (180/pi)
 
-{-
-gradientLine :: Double -> [(Point Double, Point Double)] -> [Chart Double]
-gradientLine s ps = (\(p,p') -> Chart (LineA (defaultLineStyle & #width .~ 0.005 & #color .~ black)) [PointXY p, PointXY (p + fmap (s *) p')]) <$> ps
-
--}

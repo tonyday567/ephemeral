@@ -90,7 +90,7 @@ pYahoo c = do
   ac <- A.double
   _ <- A.char c
   v <- A.double
-  pure (YahooData d (realToFrac o) (realToFrac h) (realToFrac l) (realToFrac close) (realToFrac ac) (realToFrac v))
+  pure (YahooData d o h l close ac v)
 
 -- | csv data is in other/data.csv
 yahooCsvConfig :: CsvConfig
@@ -164,7 +164,7 @@ nAll c = ((c ^. #mN) + (c ^. #mRunup))
 -- >>> exp $ sum (snd <$> rs)
 -- 25.218060748460402
 --
--- >>> writeFile "other/allreturns.svg" $ renderHudOptionsChart defaultSvgOptions (defaultHudOptions & #hudAxes .~ tsAxes ((\x -> UTCTime x 0) . fst <$> rs)) [] (stdLineChart 0.002 [Colour 0.5 0.4 0.3 1] [scanl (+) 0 (snd <$> rs)])
+-- >>> writeChartSvg "other/allreturns.svg" $ ChartSvg defaultSvgOptions (defaultHudOptions & #hudAxes .~ tsAxes ((\x -> UTCTime x 0) . fst <$> rs)) [] (stdLineChart 0.002 [Colour 0.5 0.4 0.3 1] [scanl (+) 0 (snd <$> rs)])
 --
 -- ![all returns](other/allreturns.svg)
 --

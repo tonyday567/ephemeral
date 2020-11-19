@@ -65,3 +65,10 @@ runc = do
   serveCharts <$.> e
 
 -}
+
+-- $setup
+--
+-- >>> :set -XOverloadedStrings
+-- >>> :set -XOverloadedLabels
+-- >>> let g = mkStdGen 42
+--
