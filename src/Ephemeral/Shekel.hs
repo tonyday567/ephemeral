@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE NegativeLiterals #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
@@ -11,13 +12,11 @@
 --
 module Ephemeral.Shekel
   ( shekel,
-    shekelp
+    shekelp,
   ) where
 
-import Ephemeral.Point
 import NumHask.Prelude as P
-import Numeric.Backprop
-import qualified Prelude.Backprop as B
+import NumHask.Space
 
 -- $setup
 --
@@ -94,49 +93,25 @@ sc =
     0.326
   ]
 
--- | sdiff_ xs = fmap sum . fmap (fmap (**2)) . fmap (\r -> zipWith (-) xs r) $ sa
---
-sdiff :: (Reifies s W) => BVar s [Double] -> BVar s [Double]
-sdiff xs = collectVar $
-  fmap sum $ fmap (fmap (^(2::Int))) $ (\r -> zipWith (-) (sequenceVar xs) r) <$> (sequenceVar . constVar <$> sa)
+sdiff :: [Double] -> [Double]
+sdiff xs = fmap ((sum . fmap (**2)) . zipWith (-) xs) sa
 
--- | sinv_ xs = sum $ fmap (** -1) (zipWith (+) xs sc)
---
-sinv :: (Reifies s W) => BVar s [Double] -> BVar s Double
-sinv xs = sum $ fmap (P.one/) (zipWith (+) (sequenceVar xs) (constVar <$> sc))
-
--- | Roughly translate the shekel function so tha the interesting stuff is in 'Range' (-0.5) 0.5
---
-toUnit ::
-  (Backprop a, Distributive a, Reifies s W, FromRational a) =>
-  BVar s [a] -> BVar s [a]
-toUnit xs = B.fmap (\x -> (constVar 10.0 * (x + constVar 0.5))) xs
+sinv :: [Double] -> Double
+sinv xs = sum $ fmap (** -1) (zipWith (+) xs sc)
 
 -- | The shekel function applied to a list and roughly normalised to Range (-0.5) 0.5
 --
--- >>> backprop shekel [0.302, 0.412, 0.5]
--- (0.6247750745580744,[-0.281675070331214,-1.454057727890711,-1.791642502566598])
+-- >>> shekel [0.302, 0.412, 0.5]
+-- 0.614769661738902
 --
-shekel :: (Reifies s W) => BVar s [Double] -> BVar s Double
-shekel = sinv . sdiff . toUnit
+shekel :: [Double] -> Double
+shekel = sinv . sdiff
 
--- | The shekel function applied to a Point
+-- | The shekel function applied to a Point and roughly normalised to a Rect.unit
 --
--- >>>  backprop shekelp (Point 0.302 0.412)
--- (12.04779559130664,Point 8.010284055412848 51.91474353133358)
+-- >>> shekelp (Point 0.302 0.412)
+-- 1.1945742676096427
 --
--- >>> import Chart
--- >>> import Numeric.Backprop
--- >>> import Ephemeral.Chart (surface)
--- >>> import Ephemeral.Shekel (shekelp)
--- >>> let (cs,hs) = surface 50 P.one (evalBP shekelp)
--- >>> writeFile "other/shekelp.svg" $ renderHudOptionsChart defaultSvgOptions defaultHudOptions hs cs
---
--- ![shekelp surface](other/shekelp.svg)
---
-shekelp :: (Reifies s W) => BVar s (Point Double) -> BVar s Double
-shekelp = shekel . fromPoint
-
-
-
+shekelp :: Point Double -> Double
+shekelp (Point x y) = sinv . sdiff $ [x,y]
 

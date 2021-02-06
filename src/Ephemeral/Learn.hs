@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RebindableSyntax #-}
 
 {- |
 
@@ -108,3 +109,15 @@ type Crossover f = Heuristic f Identity
 -- | an individual can also be a carrier of the algebra
 type Individual a = Population Identity a
 
+{-
+-- | climb a gradient by taking a fixed step, rejecting worse points.
+climbGradient :: Pop a Double -> (a -> Double) -> a -> Point Double
+climbGradient r f p = bool p p' (v' > fst bp)
+  where
+    bp :: (Double, Point Double)
+    bp = backprop f p
+    p' :: (Point Double)
+    p' = p + fmap (r*) (normp (snd bp))
+    v' = evalBP f p'
+
+-}

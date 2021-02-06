@@ -28,7 +28,6 @@ import Box.Csv
 import Chart
 import Control.Category
 import NumHask.Prelude as P
-import NumHask.Backprop ()
 import Lens.Micro
 import qualified Data.Attoparsec.Text as A
 import Data.Time
@@ -164,7 +163,7 @@ nAll c = ((c ^. #mN) + (c ^. #mRunup))
 -- >>> exp $ sum (snd <$> rs)
 -- 25.218060748460402
 --
--- >>> writeFile "other/allreturns.svg" $ renderHudOptionsChart defaultSvgOptions (defaultHudOptions & #hudAxes .~ tsAxes ((\x -> UTCTime x 0) . fst <$> rs)) [] (stdLineChart 0.002 [Colour 0.5 0.4 0.3 1] [scanl (+) 0 (snd <$> rs)])
+-- >>> writeChartSvg "other/allreturns.svg" $ ChartSvg defaultSvgOptions (defaultHudOptions & #hudAxes .~ tsAxes ((\x -> UTCTime x 0) . fst <$> rs)) [] (stdLineChart 0.002 [Colour 0.5 0.4 0.3 1] [scanl (+) 0 (snd <$> rs)])
 --
 -- ![all returns](other/allreturns.svg)
 --

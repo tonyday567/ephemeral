@@ -13,5 +13,6 @@ main =
   [
     "src/Ephemeral/Market.hs",
     "src/Ephemeral/Shekel.hs",
-    "src/Ephemeral/Chart.hs"
+    "src/Ephemeral/Chart.hs",
+    "src/Ephemeral/Ellipse.hs"
   ]

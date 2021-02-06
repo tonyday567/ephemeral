@@ -12,22 +12,20 @@ module Ephemeral.Chart
     scratch,
   ) where
 
-import Ephemeral.Point
 import NumHask.Prelude hiding (zero,one)
-import Chart hiding (norm)
+import Chart 
+import Control.Lens
 
 -- $setup
 --
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLabels
 -- >>> import qualified NumHask.Prelude as P
--- >>> import Numeric.Backprop
 
 -- | default chart of a surface
 --
--- >>> import Ephemeral.Shekel (shekelp)
--- >>> let (cs,hs) = surface 20 P.one (evalBP shekelp)
--- >>> writeFile "other/surface.svg" $ renderHudOptionsChart defaultSvgOptions defaultHudOptions hs cs
+-- > import Ephemeral.Shekel
+-- > writeChartSvg "other/surface.svg" $ surface 20 P.one shekel
 --
 -- ![surface chart](other/surface.svg)
 --
@@ -35,12 +33,17 @@ surface ::
   Int ->
   Rect Double ->
   (Point Double -> Double) ->
-  ([Chart Double], [Hud Double])
+  ChartSvg
 surface grain r f =
-  pixelfl f (PixelOptions defaultPixelStyle (Point grain grain) r)
-  (defaultPixelLegendOptions mempty)
+  mempty &
+  #hudList .~ hs &
+  #chartList .~ cs &
+  #svgOptions .~ (defaultSvgOptions & #cssOptions .~ UseCssCrisp)
+  where
+    (cs, hs) = surfacefl f (SurfaceOptions defaultSurfaceStyle (Point grain grain) r)
+      (defaultSurfaceLegendOptions mempty)
 
 -- | testing
-scratch :: (HudOptions, [Hud Double], [Chart Double]) -> IO ()
-scratch (ho, hs, cs) = writeFile "other/scratch.svg" $ renderHudOptionsChart defaultSvgOptions ho hs cs
+scratch :: ChartSvg -> IO ()
+scratch cs = writeChartSvg "other/scratch.svg" cs
 
