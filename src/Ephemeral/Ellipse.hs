@@ -10,62 +10,173 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-binds #-}
 
+-- |
+-- reference:
+--
+-- - [mathjax](https://math.meta.stackexchange.com/questions/5020/mathjax-basic-tutorial-and-quick-reference/5023#5023)
+-- - [haddock](https://haskell-haddock.readthedocs.io/en/latest/markup.html)
+-- - [SVG Standards](https://www.w3.org/TR/SVG/implnote.html#ArcParameterizationAlternatives)
+-- - [ellipse wiki entry](https://en.wikipedia.org/wiki/Ellipse)
+-- - [eccentric anamoly](https://mathworld.wolfram.com/EccentricAnomaly.html)
+-- - [wolfram](https://mathworld.wolfram.com/Ellipse.html)
+-- - [stackexchange](https://math.stackexchange.com/questions/426150/what-is-the-general-equation-of-the-ellipse-that-is-not-in-the-origin-and-rotate)
+--
+
 module Ephemeral.Ellipse
-  ( EllipseConfig(..),
+  ( ellipse_,
+    ellipse,
+    EllipseConfig(..),
     defaultEllipseConfig,
-    ellipseProblem,
+    run1,
   ) where
 
 import Chart hiding (ellipse)
+import Chart.Reanimate
 import Control.Lens
 import NumHask.Prelude hiding (rotate, Down, next, basis)
 import qualified Data.Sequence as Seq
 import Ephemeral.Search
-
--- https://math.meta.stackexchange.com/questions/5020/mathjax-basic-tutorial-and-quick-reference/5023#5023
-
--- https://haskell-haddock.readthedocs.io/en/latest/markup.html
-
--- https://en.wikipedia.org/wiki/Ellipse
-
--- https://mathworld.wolfram.com/EllipticModulus.html
-
--- https://mathworld.wolfram.com/EccentricAnomaly.html
-
--- https://mathworld.wolfram.com/Ellipse.html
-
--- https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter
+import Reanimate as Re hiding (rotate)
 
 -- $setup
---
 -- >>> :set -XOverloadedLabels
 -- >>> let cfg = defaultEllipseConfig
-
 
 -- | ellipse formulae
 --
 -- >>> ellipse zero (Point 1 2) (pi/6) pi
 -- Point -0.8660254037844388 -0.4999999999999997
 --
--- Compare this "elegent" definition from [stackexchange](https://math.stackexchange.com/questions/426150/what-is-the-general-equation-of-the-ellipse-that-is-not-in-the-origin-and-rotate)
+-- Compare this "elegent" definition from 
 --
--- \[dfrac {((x-h)\cos(A)+(y-k)\sin(A))^2}{a^2}+\dfrac{((x-h) \sin(A)-(y-k) \cos(A))^2}{b^2}=1\]
+-- \[\dfrac {((x-h)\cos(A)+(y-k)\sin(A))^2}{a^2}+\dfrac{((x-h) \sin(A)-(y-k) \cos(A))^2}{b^2}=1\]
 --
 -- with the haskell code:
 --
 -- > c + (rotate phi |. (r * ray theta))
 --
+-- 
+-- \[{\displaystyle {\dfrac {(x\cos \theta -y\sin \theta - c_x)^{2}}{a^{2}}}+{\dfrac {(x\sin \theta +y\cos \theta -c_y)^{2}}{b^{2}}}=1}\]
+--
 -- See also: [wolfram](https://mathworld.wolfram.com/Ellipse.html)
 --
-ellipse :: (Direction b a, Affinity b a, TrigField a) => b -> b -> a -> a -> b
-ellipse c r phi theta = c + (rotate phi |. (r * ray theta))
+ellipse_ :: (Direction b a, Affinity b a, TrigField a) => b -> a -> b -> a -> b
+ellipse_ centroid rot radii theta =
+  rotate rot |. (radii * ray theta) + centroid
 
--- $formula
+data Ellipse a =
+  Ellipse
+  { centroid :: Point a,
+    radii :: Point a,
+    major :: a
+  } deriving (Eq, Show, Generic)
+
+-- | find the point on the ellipse at an angle.
+ellipse :: Ellipse a -> a -> Point a
+ellipse c theta =
+  rotate (view #major c) |. (view #radii c * ray theta) + view #centroid c
+
+-- | Arc specification based on centroidal interpretation.
 --
--- \[
--- {\displaystyle {\dfrac {(x\cos \theta -y\sin \theta - c_x)^{2}}{a^{2}}}+{\dfrac {(x\sin \theta +y\cos \theta -c_y)^{2}}{b^{2}}}=1}
--- \]
+-- See: https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter
+--
+data EllipseSegment a =
+  EllipseSegment
+  { -- | ellipse
+    full :: Ellipse a,
+    -- | starting point
+    ang0 :: a,
+    -- | ending point
+    ang1 :: a
+  } deriving (Eq, Show, Generic)
 
+surfaceP :: ArcPosition Double -> Double -> Point Double
+surfaceP p x = ellipse_ (view #centroid c) (view #cphi c) (view #radius c) (view #ang0 c + x * view #angdiff c)
+  where
+    c = arcCentroid p
+
+
+
+fullP :: ArcPosition Double -> Double -> Point Double
+fullP p x = ellipse_ (view #centroid c) (view #cphi c) (view #radius c) (zero + x * 2 * pi)
+  where
+    c = arcCentroid p
+
+arcThetaExample :: Int -> ArcCentroid Double -> Double -> ChartSvg
+arcThetaExample n c x =
+  mempty &
+  #hudOptions .~ colourHudOptions light defaultHudOptions &
+  #svgOptions .~ (defaultSvgOptions & #chartAspect .~ CanvasAspect 1) &
+  #chartList .~
+  [ -- centroid
+    Chart (GlyphA (defaultGlyphStyle & #shape .~ CircleGlyph)) [PointXY $ view #centroid c],
+    Chart (TextA (defaultTextStyle & #size .~ 0.03 & #color .~ light) [(\(Point x y) -> "(" <> fixed (Just 2) x <> "," <> fixed (Just 2) y <> ")") $ view #centroid c]) [PointXY (Point 0.1 0.1 + view #centroid c)],
+
+    -- pos1
+    Chart (GlyphA defaultGlyphStyle) [PointXY $ ellipse c (view #ang0 c)],
+    Chart (TextA (defaultTextStyle & #size .~ 0.03 & #color .~ light) [fixed (Just 2) (view #ang0 c / pi) <> "pi"]) [PointXY (Point 0.1 0.1 + ellipse c (view #ang0 c))],
+    -- pos2
+    Chart (GlyphA defaultGlyphStyle) [PointXY $ ellipse c $
+                                      view #ang0 c + view #angdiff c],
+    Chart (TextA (defaultTextStyle & #size .~ 0.03 & #color .~ light) [fixed (Just 2) ((view #ang0 c + view #angdiff c)/ pi) <> "pi"]) [PointXY (Point -0.1 0.1 + ellipse c (view #ang0 c + view #angdiff c))],
+
+    -- major axis
+    Chart (LineA $ defaultLineStyle & #color .~ setOpac 0.5 light & #width .~ 0.005) [PointXY (view #centroid c), PointXY (ellipse c zero)],
+    Chart (TextA (defaultTextStyle & #rotation ?~ view #cphi c & #size .~ 0.03 & #color .~ light) ["major axis"]) [PointXY (Point 0.02 0.1 + 0.5 .* (view #centroid c + ellipse c zero))],
+
+    -- ellipse chord
+    Chart (LineA (defaultLineStyle & #color .~ setOpac 0.2 light))
+    (PointXY . ellipse c <$> grid'),
+
+    -- theta animation
+    Chart (GlyphA (defaultGlyphStyle & #shape .~ CircleGlyph & #borderColor .~ transparent & #borderSize .~ 0 & #color .~ Colour 0.8 0.5 0.1 1 & #size .~ 0.02)) [PointXY $ ellipse c (x * 2 * pi)],
+    Chart (TextA (defaultTextStyle & #size .~ 0.03 & #color .~ light) [fixed (Just 2) (x * 2) <> "pi"]) [PointXY (Point 0.1 0.1 + ellipse c (x * 2 * pi))]
+  ]
+  where
+    grid' = grid OuterPos (Range (view #ang0 c) (view #ang0 c + view #angdiff c)) n
+
+run :: IO ()
+run =
+  reanimate (animChartSvg defaultReanimateConfig (ellipseExample 100 (pi/4) (Point 2 1)))
+
+fixC :: Rect Double -> ChartSvg -> ChartSvg
+fixC r cs = cs & #chartList %~ (<> [Chart BlankA [RectXY r]])
+
+arcExamplePhi :: ArcCentroid Double -> Double -> Double -> ChartSvg
+arcExamplePhi c xPhi xTheta = arcThetaExample 100 c' xTheta
+  where
+    c' = c & set #cphi (project (Range zero one) (Range 0 (2*pi)) xPhi)
+
+run1 :: IO ()
+run1 =
+  reanimate
+  (animChartSvg (defaultReanimateConfig & #duration .~ 20)
+    (\x -> fixC (Rect (-3) 3 (-3) 3) $
+      arcExamplePhi
+      (ArcCentroid (Point 0 0) (Point 2 1) zero 0 (3 * pi / 2)) x (4*x)))
+
+animTheta :: Animation
+animTheta = animChartSvg defaultReanimateConfig
+  (\x -> #svgOptions . #chartAspect .~ CanvasAspect 1 $
+    ellipseExample 100 (pi/4) (Point 2 1) x <>
+   (mempty & #chartList %~ (<> [Chart (TextA (defaultTextStyle & #color .~ light & #anchor .~ AnchorStart) ["angle: " <> fixed (Just 2) (x*2) <> " pi"]) [P -2.0 2.0]]))
+  )
+
+animRot :: Animation
+animRot =
+  animChartSvg defaultReanimateConfig
+  (\x -> ellipseExample 100 (project (Range zero one) (Range 0 (2*pi)) x) (Point 2 1) 0 <>
+   (mempty & #chartList %~ (<> [Chart (TextA (defaultTextStyle & #color .~ light & #anchor .~ AnchorStart) ["rotation: " <> fixed (Just 2) (x*2) <> " pi"]) [P -2.0 2.0]])))
+
+animRadii :: Animation
+animRadii =
+  animChartSvg defaultReanimateConfig
+  (\x -> ellipseExample 100 (pi/4) (Point (project (Range zero one) (Range one 2) x) one) zero <>
+   (mempty & #chartList %~ (<> [Chart (TextA (defaultTextStyle & #color .~ light & #anchor .~ AnchorStart) ["eccentricity: " <> fixed (Just 2) (1+x)]) [P -2.0 2.0]])))
+
+-- | animates across the surface of the ellipse segment
+animPos :: ArcCentroid Double -> Animation
+animPos c = animChartSvg defaultReanimateConfig (arcThetaExample 100 c)
 
 -- * ellipse problem
 -- |
@@ -110,15 +221,15 @@ fit_ cfg =
       <$> zipWith
         (-)
         ( projectOnP (cfg ^. #projection) one
-            . ellipse c r phi
+            . ellipse_ c rot r
             . (\x -> 2 * pi * fromIntegral x / fromIntegral n)
             <$> [0 .. n]
         )
-        (ellipse c' r' phi' . (\x -> 2 * pi * fromIntegral x / fromIntegral n) <$> [0 .. n])
+        (ellipse_ c' rot' r' . (\x -> 2 * pi * fromIntegral x / fromIntegral n) <$> [0 .. n])
   where
     n = cfg ^. #numPoints
-    (ArcCentroid c r phi _ _) = view #arc0 cfg
-    (ArcCentroid c' r' phi' _ _) = view #guess cfg
+    (ArcCentroid c r rot _ _) = view #arc0 cfg
+    (ArcCentroid c' r' rot' _ _) = view #guess cfg
 
 -- | The basis for an ArcCentroid
 basis_ :: Seq Double -> EllipseConfig -> EllipseConfig
