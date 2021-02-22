@@ -20,6 +20,8 @@ import Chart
 import NumHask.Prelude hiding (rotate, Down, next)
 -- import Numeric.RootFinding
 import qualified Data.Sequence as Seq
+import NumHask.Array.Fixed
+import Data.Functor.Rep
 
 data Dir = Up | Down deriving (Eq, Show)
 
@@ -29,10 +31,10 @@ data Stops a =
   NotConverging
   deriving (Eq, Show, Generic)
 
-data Problem a b c = Problem {
-    basis :: Seq Double -> a -> a,
-    fit :: a -> b,
-    search :: c
+data (KnownNat n) => Problem n config a = Problem {
+    field :: Array '[n] (Range Double),
+    fit :: Array '[n] Double -> a,
+    search :: config
     }
 
 newtype SearchConfig a =
@@ -47,12 +49,6 @@ defaultSearchConfig eps =
 -- problem :: b -> (Seq a -> b) -> (b -> Double) -> Range (Seq a) -> Problem a b
 -- problem cfg make fit r = fit <$> max r <*> min r <*> (bool 1 -1 . (==Up)) <$> [Up, Down]
 
--- | return the values of all possible jumps, given a candidate
---
--- >>> allBasis cfg (fst $ view #best u)
--- 7.105427357601002e-14 :| [1.1368683772161603e-13,1.8758328224066645e-12]
-bases :: (Ord a) => Seq (Range a) -> Seq (Range a)
-bases rs = Range <$> (upper <$> rs) <*> (lower <$> rs)
 
 {-
 -- | pick the next candidate
@@ -145,10 +141,6 @@ loop l = do
 data Check = Continue | Stop deriving (Eq, Show)
 
 step :: StateT (Exp Identity Double) Identity Check
-step = undefined
-
-{-
-step :: StateT (Exp Identity Double) Identity Check
 step = do
   cfg <- use #config
   (_, f') <- use #best
@@ -174,31 +166,3 @@ step = do
     (c >= mi)
 
 -}
-
-{-
--- | TODO: check this
-chartGuess :: ProjectionConfig -> ArcCentroid Double -> IO ()
-chartGuess cfg g = do
-  let (ArcCentroid c r phi ang0 angd) = cfg ^. #arc0
-  let (ArcCentroid c' r' phi' ang0' angd') = g
-  let n = cfg ^. #numPoints
-  let nd = fromIntegral n
-  let ellGuess = Chart (LineA $ defaultLineStyle & #width .~ 0.03 & #color .~ Colour 1 0 0.3 0.3) (PointXY . ellipse c' r' phi' . (\x -> ang0' + angd' * fromIntegral x / nd) <$> [0 .. n])
-  let ell = Chart (LineA $ defaultLineStyle & #width .~ 0.04 & #color .~ Colour 0.7 0.2 0.8 0.3) (PointXY . ellipse c r phi . (\x -> ang0 + angd * fromIntegral x / nd) <$> [0 .. n])
-  writeChartSvgDefault "other/g1.svg" (projectXYsWith (cfg ^. #projection) one [ell] <> [ellGuess])
-
--}
-
-{- TODO: Why doesn't this work?
--- | ellipse radii formulae
---
--- p = c + rotate phi (r * ray theta)
--- rotate (-phi) (p - c) / ray theta = r
-ellipseR' :: (Direction b a, Affinity b a, Field b, TrigField a) => b -> b -> a -> a -> b
-ellipseR' p c phi theta = (rotate (-phi) |. (p - c)) / ray theta
-
--}
-
-
--}
-

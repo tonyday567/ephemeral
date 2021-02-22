@@ -36,6 +36,7 @@ library
     -hiedir=.hie
 
   build-depends:
+    adjunctions >= 4.4 && < 4.5,
     attoparsec >= 0.13 && < 0.14,
     base >= 4.7 && < 5,
     box >= 0.6 && < 0.7,

@@ -4,6 +4,7 @@
 {-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE NegativeLiterals #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -40,17 +41,32 @@ module Ephemeral.Ellipse
     shortES,
   ) where
 
-import Chart hiding (rotate, ellipse)
+import Chart hiding (rotate, ellipse, radii)
 import Chart.Reanimate
-import Control.Lens
+import Control.Lens hiding (index)
 import NumHask.Prelude hiding (rotate, Down, next)
 import Reanimate as Re hiding (rotate)
+import NumHask.Array.Fixed as A
+import Data.Functor.Rep
+import Ephemeral.Search
 
 -- \[\dfrac {((x-h)\cos(A)+(y-k)\sin(A))^2}{a^2}+\dfrac{((x-h) \sin(A)-(y-k) \cos(A))^2}{b^2}=1\]
 --
 -- \[{\displaystyle {\dfrac {(x\cos \theta -y\sin \theta - c_x)^{2}}{a^{2}}}+{\dfrac {(x\sin \theta +y\cos \theta -c_y)^{2}}{b^{2}}}=1}\]
 
--- | FIXME: transfer to numhask-space
+-- | direction laws
+--
+-- > ray . angle == basis
+-- > norm (ray x) == one
+-- > a = norm a .* ray (angle a)
+-- > rotate a p
+-- > == rotate a (norm p .* ray (angle p))
+-- > == norm p .* rotate a (ray (angle p))
+-- > == norm p .* ray (angle p + a)
+-- > rotate a (p * p') = p * rotate a p'
+
+
+-- | FIXME: transfer to numhask
 -- > rotate a p = norm p .* ray (a + angle p)
 rotate :: (MultiplicativeAction b a, Norm b a, Direction b a) => a -> b -> b
 rotate a b = norm b .* ray (a + angle b)
@@ -61,19 +77,19 @@ rotate a b = norm b .* ray (a + angle b)
 
 -- | Find the point on the ellipse circumference at the supplied angle
 --
--- >>> ellipse (Point 1 1) (Point 2 1) 0.1 0.2
+-- >>> ellipse_ (Point 1 1) (Point 2 1) 0.1 0.2
 -- Point 2.930506816327422 1.3933636016685953
 --
-ellipse_ :: (MultiplicativeAction b a, Norm b a, Direction b a) => b -> a -> b -> a -> b
-ellipse_ centroid major radii theta =
+ellipse_ :: (MultiplicativeAction b a, Norm b a, Direction b a) => b -> b -> a -> a -> b
+ellipse_ centroid radii major theta =
   rotate major (radii * ray theta) + centroid
-
+  -- radii * ray (theta + major) + centroid
 -- | find the centroid of an ellipse given a point on the circumference.
 --
--- >>> centroid_ 0.1 (Point 2 1) 0.2 (Point 2.930506816327422 1.3933636016685953)
+-- >>> centroid_ (Point 2 1) 0.1 0.2 (Point 2.930506816327422 1.3933636016685953)
 -- Point 1.0 1.0
-centroid_ :: (Subtractive b, MultiplicativeAction b a, Norm b a, Direction b a) => a -> b -> a -> b -> b
-centroid_ major radii theta pos = pos - rotate major (radii * ray theta)
+centroid_ :: (Subtractive b, MultiplicativeAction b a, Norm b a, Direction b a) => b -> a -> a -> b -> b
+centroid_ radii major theta pos = pos - rotate major (radii * ray theta)
 
 -- | find the radii of an ellipse given a point on the circumference.
 --
@@ -91,32 +107,15 @@ major_ centroid radii theta pos = pos & (\x -> x - centroid) & (\x -> angle x - 
 
 -- | find the angle of a point on the circumference for a a rotated ellipse.
 --
--- >>> theta_ (Point 1 1) 0.1 (Point 2 1) (Point 2.930506816327422 1.3933636016685953)
+-- >>> theta_ (Point 1 1) (Point 2 1) 0.1 (Point 2.930506816327422 1.3933636016685953)
 -- 0.19999999999999998
-theta_ :: (Divisive b, Subtractive b, Subtractive a, MultiplicativeAction b a, Norm b a, Direction b a) => b -> a -> b -> b -> a
-theta_ centroid major radii pos =
+theta_ :: (Divisive b, Subtractive b, Subtractive a, MultiplicativeAction b a, Norm b a, Direction b a) => b -> b -> a -> b -> a
+theta_ centroid radii major pos =
   pos &
   (\x -> x - centroid) &
   rotate (-major) &
   (/radii) &
   angle
-
--- >>> let es = EllipseSegment (Ellipse (Point 1 1) (Point 2 1) 0.1) 0.2 2.0
--- >>> centroid_ False es
--- Point 1.0 1.0
---
-findCentroid :: Bool -> EllipseSegment Double -> Point Double
-findCentroid up es = c
-  where
-    p0' = pos0 es & rotateP (-m) & (/r)
-    p1' = pos1 es & rotateP (-m) & (/r)
-    p' = (p0' + p1') /. 2
-    mag = sqrt (1 - (norm (p1' - p0') / 2)^2)
-    dir' = angle (p1' - p0') + bool (-pi/2) (pi/2) up
-    c' = p' + mag .* ray dir'
-    c = c' * r & rotateP m
-    m = view (#full . #major) es
-    r = view (#full . #radii) es
 
 data Ellipse a =
   Ellipse
@@ -142,11 +141,11 @@ shortE e =
 
 -- | find the point on the ellipse at an angle.
 ellipse :: Ellipse Double -> Double -> Point Double
-ellipse e = ellipse_ (view #centroid e) (view #major e) (view #radii e)
+ellipse e = ellipse_ (view #centroid e) (view #radii e) (view #major e)
 
 -- | find the angle of a point to an ellipse
 angleE :: Ellipse Double -> Point Double -> Double
-angleE e = theta_ (view #centroid e) (view #major e) (view #radii e)
+angleE e = theta_ (view #centroid e) (view #radii e) (view #major e)
 
 -- | Arc specification based on centroidal interpretation.
 --
@@ -173,37 +172,48 @@ pos0 es = ellipse (view #full es) (view #ang0 es)
 pos1 :: EllipseSegment Double -> Point Double
 pos1 es = ellipse (view #full es) (view #ang1 es)
 
--- > rotate a p = norm p .* ray (a + angle p)
-
--- rotate major' (radii' * ray ang0) + centroid = pos0
--- (radii' * ray ang0) = rotate (-major') (pos0 - centroid)
-
--- a = norm a .* ray (angle a)
+-- | find the centroid given the other ellipse segment information.
 --
--- norm (radii * ray ang0) .* ray (angle (radii' * ray ang0) + major') = pos0 - centroid
+-- >>> let es = EllipseSegment (Ellipse (Point 1 1) (Point 2 1) 0.1) 0.2 2.0
+-- >>> findCentroid True es
+-- Point 0.9999999999999993 0.9999999999999999
+--
+findCentroid :: Bool -> EllipseSegment Double -> Point Double
+findCentroid up es = c
+  where
+    p0' = pos0 es & rotateP (-m) & (/r)
+    p1' = pos1 es & rotateP (-m) & (/r)
+    p' = (p0' + p1') /. 2
+    mag = sqrt (1 - (norm (p1' - p0') / 2)^2)
+    dir' = angle (p1' - p0') + bool (-pi/2) (pi/2) up
+    c' = p' + mag .* ray dir'
+    c = c' * r & rotateP m
+    m = view (#full . #major) es
+    r = view (#full . #radii) es
 
--- rotate major' (radii' * ray ang0) = pos0 - centroid
--- rotate major' (radii' * ray ang1) = pos1 - centroid
--- radii' = rotate (-major') (pos0 - centroid) / (ray ang0)
--- radii' = norm (pos0 - centroid) .* ray ((-major) - ang0)
--- rotate major' (norm (pos0 - centroid) .* ray ((-major) - ang0) * ray ang0)
--- norm (pos0 - centroid) .* rotate major' (ray ((-major) - ang0) * ray ang0)
--- norm (pos0 - centroid) .* rotate major' (ray (-major)) = pos0 - centroid
--- radii_ c' m ang1' pos1' = r
--- major_ c' r ang0' pos0' = m
--- major_ c' r ang1' pos1' = m
--- pos0' = + c'
+-- rotate m' (r' * ray ang0) + c = pos0
+-- r' * ray (ang0 + m') = pos0 - c
+--
+--
+-- >>> scaleES (Point 2 1) es
+--
+-- r' = rotate (-m') rm'
+-- rotate m' (r' * ray ang0) + centroid = pos0
+-- r' * (rotate m' (ray ang0)) + centroid = pos0
+-- r' * ray (ang0 + m') = pos0 - centroid
+-- rotate (-m') rm' * ray (ang0 + m') = pos0 - centroid
 scaleES :: Point Double -> EllipseSegment Double -> EllipseSegment Double
-scaleES s es = EllipseSegment (Ellipse c' r' m') ang0' ang1'
+scaleES s es = EllipseSegment (Ellipse c' rm' m') a0' a1'
   where
     pos0' = s * pos0 es
     pos1' = s * pos1 es
     c' = s * view (#full . #centroid) es
-    r' = s * view (#full . #radii) es
-    ang0' = angle (pos0' - c') - m'
-    ang1' = angle (pos1' - c') - m'
+    r = view (#full . #radii) es
+    m = view (#full . #major) es
+    a0' = angle (pos0' - c')
+    a1' = angle (pos1' - c')
     m' = 0
-    r' = rotateP (view (#full . #major) es) (pos0' - c')
+    rm' = s * rotate m r
 
 -- chart helpers
 addTitle :: Text -> Colour -> Double -> ChartSvg -> ChartSvg
@@ -334,7 +344,6 @@ dBisectEllipseSegment es =
 
 -- | bisection method to find centroid
 --
--- >>> (EllipseSegment (Ellipse (Point 1 1) (Point 2 1) (pi/4)) (pi/2) (3*pi/2))
 dBisect :: EllipseSegment Double -> Double -> ChartSvg
 dBisect es x =
   dThetaEllipseSegment es x <>
@@ -358,3 +367,31 @@ run1 :: IO ()
 run1 = run $
   dThetaEllipseSegment
   (EllipseSegment (Ellipse (Point 0 0) (Point 2 1) zero) zero (pi/2))
+
+
+
+data ConfigMR = ConfigMR { gride :: Int, scalee :: Point Double, orige :: Ellipse Double} deriving (Show, Eq, Generic)
+
+defaultMR :: ConfigMR
+defaultMR = ConfigMR 100 (Point 2 1) (Ellipse (Point 1 1) (Point 2 1) 0.2)
+
+-- | numerical solution to m' and r'
+--
+--
+fitMR :: (KnownNat n) => ConfigMR -> Array '[n] Double -> Double
+fitMR c xs = sum (norm <$> (zipWith (-) exacte modele))
+  where
+    g = grid LowerPos (Range 0 (2*pi)) (view #gride c)
+    exacte = (view #scalee c *) . ellipse (view #orige c) <$> g
+    modele = ellipse e' <$> g
+    e' =
+      Ellipse
+      (view (#orige . #centroid) c)
+      (Point (index xs [0]) (index xs [1]))
+      (index xs [2])
+
+fieldMR :: Array '[3] (Range Double)
+fieldMR = fromList [Range -2 2, Range -2 2, Range zero (2*pi)]
+
+problemMR :: Problem 3 (SearchConfig Double) Double
+problemMR = Problem fieldMR (fitMR defaultMR) (defaultSearchConfig epsilon)
