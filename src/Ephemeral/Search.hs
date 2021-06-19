@@ -8,6 +8,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE NegativeLiterals #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -15,154 +17,220 @@
 
 module Ephemeral.Search where
 
-import Chart
--- import Control.Lens
-import NumHask.Prelude hiding (rotate, Down, next)
--- import Numeric.RootFinding
-import qualified Data.Sequence as Seq
-import NumHask.Array.Fixed
-import Data.Functor.Rep
+import Prelude
+import Data.Profunctor
+import GHC.Generics
+import Data.Functor.Identity
+import Data.String
+import Data.Bool
 
+{- |
+A computer program is said to learn from experience E with respect to some task T and some performance measure P, if its performance on T, as measured by P, improves with experience E. ~ Tom Mitchell
+-}
+
+{-
+I initial wrote this up as I was working through basic Machine Learning concepts.
+
+The end result seems to be an API focused on `composting`: on a mechanical process of reducing old, old data in massive quantities, to permanent statistic regularities that may explain the behaviour of living computations.
+
+So I'm sitting with it, contemplating how to abstract that out, and find another API.
+
+-}
+
+-- | learning is to use experience to change the performance of a task.
+newtype Learn f e p =
+  Learn { change :: Foldable f => Experience f e -> Task e p -> Task e p }
+
+-- | An experience is an accumulation of e, the carrier of some underlying grammar.
+--
+newtype Experience f e = Experience { set :: f e }
+
+-- | A task is a pure function that performance measures an experience singleton.
+--
+-- Both performance measures and experiences will need to remain flexible.
+--
+-- TODO: How would this hook into the nucleus of a profunctor memes?
+--
+newtype Task e p = Task { measure :: e -> p } deriving (Profunctor)
+
+-- | To progress, is to transduce a Task
+newtype Progress e p = Progress { step :: e -> Task e p -> Task e p}
+
+-- | population
+newtype Population f a = Population { individuals :: f a } deriving (Generic)
+
+-- | A heuristic is any approach to problem solving or *self-discovery* that employs a practical method, not guaranteed to be optimal, perfect, or rational.
+--
+-- populations evolve according to heuristics.
+--
+-- They are natural transformations, with a carrier phenotype.
+--
+newtype Heuristic f g a = Heuristic { evolve :: Population f a -> Population g a }
+
+-- | cofunctor, like an average
+--
+-- isomorphic to a coalgebra (a -> g a)
+type Neighbourhood = Heuristic Identity
+
+-- | mutation is isomorphic to (->).
+--
+type Mutation = Heuristic Identity Identity
+
+-- | foldable/an algebra
+--
+-- f a -> a
+type Crossover f = Heuristic f Identity
+
+-- | an individual can also be a carrier of the algebra
+--
+type Individual a = Population Identity a
+
+-- | to learn, is to make Progress (good, bad or ugly) from an Experience.
+--
+-- In an online setting, processing streamed data, say, this is an update of the state of a Moore machine.
+--
+-- It doesn't allow for Mealy machine networks, where the Mealy's can fire independently of their inputs.
+learn :: Progress e p -> Learn f e p
+learn p = Learn $ \(Experience e) task -> foldr (step p) task e
+
+-- | to improve, given a way to change a task by experience, you need to choose the better way over an experience set.
+improve ::
+  (Ord (f p), Foldable f, Functor f) =>
+  Progress e p ->
+  Experience f e ->
+  Task e p ->
+  Task e p
+improve progress es task =
+  bool task task' (p' > p)
+  where
+    task' = change (learn progress) es task
+    p = measure task <$> set es
+    p' = measure task' <$> set es
+
+{- * sub-component as topologist
+
+The whole problem with this setup is the `(>)` on the measured fitness value. It introduces an a priori: that the only thing worth knowing is which way is up, and that the only way forward is to proceed to the summit. There may be some trickiness needed to jump over local hills and find the ultimate high spot, but we will get there faster or more reliably than anyone else can. Finally, it tightly couples progress with computing the next value.
+
+If we asked our sub-components, such as improve, to instead report on the topology and statistics of the space, then the usual learning processes (under the hood of every machine learning algorithm ever built) is actually a degenerate version, providing a summary consisting of the minimum or maximum value and where it's located.
+
+IN this refactor, `next` would never know, as a sub-component, how many times it will be called. The first few suggestions might be random or grid-spaced if it's well-bounded. The next few would certainly try to extrapolate the results and search the highest and lowest gradient paths to see the local peaks and troughs. What then?
+
+The AI solution, where a more topological approach is used, usually advocates a "shared fitness" approach where fitness for an individual is computed by also taking into account neighbouring results. K-means clustering is the iconic approach. With this reorientation, this appraoch can be seen as a clunky way to compensate for the API focus on the best individual and subsequent hinge point created for progress to use fitness as the sole criteria.
+
+The shared fitness approach includes a rule of thumb that parameter space sections consisting of broad, high tableland shapes should be preferentially explored. This may be a natural outcome of this refactor.
+
+An interesting design is where next is not supplied with any notion of distance for individual parameter elements and must make it's way by supplying it's own empirical notion of parameter distance. In this way, the statistics that it uses are topological as well. Associated to this is for next to form it's own ideas about the value of K in K-Means.
+
+Bulk processing of populations using this structure seems more about the heuristic shortcuts in peoples minds than any formal feature of the problem domain. The API is simplified by generating just one suggestion at a time, and allowing bulk efficiencies to be explored above upstream.
+
+-}
+
+data Topology a p
+
+-- | generate the next parameter choice to be tested.
+next :: Topology a p -> a
+next = undefined
+
+-- | update the space summary
+--
+-- Is Topology really Task in disguise but a higher-kinded layer up?
+-- newtype Progress e p = Progress { step :: e -> Task e p -> Task e p}
+--
+-- Actual computation of the next suggestion is not guaranteed, so the fitness, p, is a Maybe to allow for the potential for delays in feeding the result of an individual test back, or if there is another process that rejects the suggestion.
+--
+-- as an alternative there could be a direct conversion to Topology, with Topology being monoidal.
+-- toTop :: (a, Maybe p) -> Topology a p
+--
+-- so update becomes `(<>) . toTop`
+--
+update :: (a, Maybe p) -> Topology a p -> Topology a p
+update = undefined
+
+-- also useful would be to back out a point from the topology, if, for example, you were replacing a previous suggestion, with one that now included a fitness value.
+delete :: (a, Maybe p) -> Topology a p -> Topology a p
+delete = undefined
+
+-- Evaluation of good search to a single value potentially recovers the old notion of optimisation or maximisation, given the broader objective.
+searched :: Topology a p -> Double
+searched = undefined
+
+init :: Topology a p
+init = undefined
+
+{-
+
+A good example may be the degenerate case of exploring the surface of what turns out to be a sphere. Suggested candidate parameters should quickly find their way to near the surface and then fan out across it with a smooth denisity.
+
+-}
+
+-- * linear regression examples
+
+-- | This is a major categorization in machine learning, and probably a silly way if  you were to start fromn scratch.
+data LearningType a c =
+  Regression {fit :: (Ord a, Num a) => Params a} |
+  Classification { enumerate :: (Eq c) => Params c}
+
+{- |
+If we take a linear regression, with parameters of alpha and betas unified as (a:bs), gives a carrier e of ([a], a). We take an [a] (the dependent variables) and produce an a, our guess as to the independent variable. We then take the second element of the tuple and know it is the underlying true answer to our guess. The difference between our guess and the correct answer is our measure, with the closer to zero the better.
+-}
+newtype Params a = Params { act :: [a] } deriving (Eq, Show, Generic)
+
+-- | linear regression error
+error' :: (Num a) => Params a -> ([a], a) -> a
+error' (Params bs) (es, y) = sum (zipWith (*) bs (1:es)) - y
+
+-- | errors over an Experience set
+errors :: (Functor f, Num a) => Params a -> Experience f ([a],a) -> f a
+errors p (Experience es) = error' p <$> es
+
+-- | The value of a population, for each experience.
+value :: (Traversable p, Traversable e, Applicative e, Num a) =>
+  Population p (Params a) ->
+  Experience e ([a], a) ->
+  (e (p a) -> p a) ->
+  p a
+value (Population ps) (Experience es) f = f $ traverse (\p -> error' p <$> es) ps
+
+-- * Some basics that will need to fit in with all of this
+limit_ :: (Ord a, Num a) => a -> [a] -> a
+limit_ _ [] = error ("empty" :: String)
+limit_ eps (x0:xs0) = go x0 xs0
+  where
+    go x [] = x
+    go x (x':xs) = bool (go x' xs) x' (abs (x - x') < eps)
+
+-- >>> sqroot 2
+-- 1.414213562373095
+sqroot a = limit_ (iterate next 1.0)
+  where
+    next x = (x + a/x) / 2
+
+deriv f x =
+  limit_ (map slope (iterate (/2) 1.0))
+  where
+    slope h = (f (x+h) - f x) / h
+
+integrate f a b x =
+  limit_ (map area (iterate (/2) 1.0))
+  where
+    area h = sum $ (h*) . f x <$> take (floor $ (b - a) / h) (iterate (+h) a)
+
+-- | Hughes' improve idea
+improve' = undefined
+-- A + B * h^n
+-- A + B * (h/2)^n
+
+-- * complex convergence
+--
+-- but this is tuned to the value-centric cycle approach.
+--
 data Dir = Up | Down deriving (Eq, Show)
 
-data Stops a =
+data Stops a b =
   MaxIterations Int |
   Converged a |
   NotConverging
   deriving (Eq, Show, Generic)
 
-data (KnownNat n) => Problem n config a = Problem {
-    field :: Array '[n] (Range Double),
-    fit :: Array '[n] Double -> a,
-    search :: config
-    }
-
-newtype SearchConfig a =
-  SearchConfig
-  { stops :: Seq (Stops a)
-  } deriving (Generic, Eq, Show)
-
-defaultSearchConfig :: a -> SearchConfig a
-defaultSearchConfig eps =
-  SearchConfig (Seq.fromList [MaxIterations 100, Converged eps, NotConverging])
-
--- problem :: b -> (Seq a -> b) -> (b -> Double) -> Range (Seq a) -> Problem a b
--- problem cfg make fit r = fit <$> max r <*> min r <*> (bool 1 -1 . (==Up)) <$> [Up, Down]
-
-
-{-
--- | pick the next candidate
---
--- Returns the jump index and direction
---
--- >>> flip evalState u next 
--- (2,Down)
-next :: State (Exp Identity Double Double) (Int, Dir)
-next = undefined {-do
-  cfg <- config <$> get
-  g <- fst . best <$> get
-  pure $
-    second (bool Up Down . (>0)) $
-    maximumBy (comparing (abs . snd))
-    (N.zip (N.iterate (+ 1) 0) (allBasis cfg g))--}
-
--- | find the best marginal basis jump and bracket this.
---
--- >>> flip evalState u nextRange
--- Just (2,(-0.9999999999999998,-1.0e-14))
-nextRange :: State (Exp Identity Double) (Maybe (Int, (Double, Double)))
-nextRange = undefined {-
-do
-  cfg <- config <$> get
-  g <- fst . best <$> get
-  (i, dir') <- next
-  let d = view #lim cfg
-  let bump = bool (-d) d (dir'==Up)
-  let b = findBracket bump 10 1e12 (negate . delta1 cfg g (acBasis N.!! i))
-  pure $
-    bool (Just (i, (b, -epsilon))) (Just (i, (epsilon, b))) (b > 0)
-
--}
--- | test the marginal change in the function (gradient) given a candidate
---
-delta1 :: Seq Double -> a -> Double
-delta1 cfg x = undefined -- f b x - f x (b Seq.empty)
-
--- |
--- `findBracket 1 10 1e12 f` finds the 
-findBracket :: Double -> Double -> Double -> (Double -> Double) -> Double
-findBracket x0 xp xm f = go x0
-  where
-    go x = bool (bool (go (x * xp)) x (f x <= 0)) 0.001 (x >= xm)
-
--- | Search for the next guess by finding the root of the minimisation equation using the best jump candidate
---
--- >>> fst $ flip runState u findr
--- Right (2,ArcCentroid {centroid = Point -0.2864867185179476 1.6092991486979669, radius = Point 1.3866801807145206 2.8942082605509394, cphi = 0.29581201292739345, ang0 = -2.8, angdiff = -5.348100265785992})
-findr :: State (Exp Identity Double) (Either Text a)
-findr = undefined
-{-do
-  cfg <- config <$> get
-  g <- fst . best <$> get
-  nr <- fmap (\(i, bs) -> (i, root bs (delta1 cfg g (acBasis N.!! i)))) <$> nextRange
-  pure $ case nr of
-    (Just (_, NotBracketed)) -> Left "NotBracketed"
-    Just (_, SearchFailed) -> Left "SearchFailed"
-    Just (i', Root a) -> Right (i', (acBasis N.!! i') a g)
-    Nothing -> Left "brackets not found"
--}
-
--- | root finder
---
--- >>> (Just (_,bs)) = flip evalState u nextRange
--- >>> root bs (delta1 defaultProjectionConfig (fst $ view #best u) (acBasis N.!! 2))
--- Root (-0.8004220799614118)
-root :: (Double, Double) -> (Double -> Double) -> Root Double
-root = ridders (RiddersParam 100 (RelTol $ epsilon * 1.0))
-
-
--- | Search for better guesses
---
--- > search defaultProjectionConfig
---
--- TODO: polymorphise ArcCentroid
--- search :: c -> IO ()
--- search cfg = pPrintNoColor =<< execStateT (loop pPrintNoColor) (upto cfg)
-
-loop :: (Exp Identity Double -> IO ()) -> StateT (Exp Identity Double) IO ()
-loop l = do
-  check <- hoist generalize step
-  bool (do
-           u <- get
-           liftIO (l u)
-           loop l)
-    (pure ()) (check==Stop)
-
-data Check = Continue | Stop deriving (Eq, Show)
-
-step :: StateT (Exp Identity Double) Identity Check
-step = do
-  cfg <- use #config
-  (_, f') <- use #best
-  c <- use #count
-  mi <- use (#config . #maxIterations)
-  tol <- use (#config . #tol)
-  bool
-    (do
-        x <- findr
-        case x of
-          Left e -> #log %= (<> ["error: " <> e]) >> pure Stop
-          Right (_, g) -> do
-            let f = fit cfg g
-            #log %= (<> ["f: " <> show f])
-            bool
-              (do
-                  #best .= (g,f)
-                  #log %= (<> ["step: " <> show c <> ":" <> show (g,f)])
-                  pure Continue)
-              (#log %= (<> ["tolerance reached"]) >> pure Stop)
-              (f' - f < tol))
-    (#log %= (<> ["maximum iterations reached"]) >> pure Stop)
-    (c >= mi)
-
--}
+defaultStops :: a -> [Stops a b]
+defaultStops eps = [MaxIterations 100, Converged eps, NotConverging]

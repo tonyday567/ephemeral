@@ -15,14 +15,13 @@ module Ephemeral.Shekel
     shekelp,
   ) where
 
-import NumHask.Prelude as P
-import NumHask.Space
+import Prelude
 
 -- $setup
 --
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLabels
--- >>> import NumHask.Prelude as P
+-- >>> import Prelude
 
 -- underlying shekel function constants
 sa :: [[Double]]
@@ -109,9 +108,9 @@ shekel = sinv . sdiff
 
 -- | The shekel function applied to a Point and roughly normalised to a Rect.unit
 --
--- >>> shekelp (Point 0.302 0.412)
+-- >>> shekelp (0.302, 0.412)
 -- 1.1945742676096427
 --
-shekelp :: Point Double -> Double
-shekelp (Point x y) = sinv . sdiff $ [x,y]
+shekelp :: (Double, Double) -> Double
+shekelp (x,y) = sinv . sdiff $ [x,y]
 
