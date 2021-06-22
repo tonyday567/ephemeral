@@ -53,7 +53,7 @@ newtype Emitter f a = Emitter
 instance HFunctor Emitter where
   hmap nat (Emitter e) = Emitter (nat e)
 
--- | A Shell is a product of a Committer m and an Emitter. It is it's own dual in the sense that it describes the connection points that can turn a nucleus into a profunctor, but can also wire up the profunctor to the outside world. The Shell doesn't care bwhich is which.
+-- | A Shell is a product of a Committer m and an Emitter. It is it's own dual in the sense that it describes the connection points that can turn a nucleus into a profunctor, but can also wire up the profunctor to its outside context (it's closure). The Shell doesn't care which is which.
 --
 -- And either way, the committer is contravariant and the emitter covariant
 -- so it forms a profunctor.
