@@ -1,6 +1,6 @@
 cradle:
-  stack:
+  cabal:
     - path: "./src/"
-      component: "ephemeral:lib"
+      component: "ephemeral:lib:ephemeral"
     - path: "./test/"
-      component: "ephemeral:test"
+      component: "ephemeral:test:ephemeral"
