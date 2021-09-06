@@ -29,12 +29,23 @@ import Data.Bool
 import Data.Functor
 import Yaya.Functor
 
+{-
+
+Take a Profunctor and slit it into three:
+
+- the committer, the incoming contravariant input.
+- the emitter, the outgoing convariant output, and
+- the egg, which transforms the input to the output.
+
+-}
+
 -- | a Committer a "commits" values of type a. A Sink and a Consumer are some other metaphors for this.
 --
 -- A Committer absorbs the value being committed; the value disappears into the opaque thing that is a Committer from the pov of usage.
 --
 -- TODO: 
--- newtype Committer f n a = Committer { commit :: a -> f n }
+newtype Comm f a b = Comm { comm :: a -> f b }
+
 newtype Committer f a = Committer
   { commit :: a -> f Bool
   }
@@ -45,7 +56,9 @@ instance HFunctor Committer where
 -- | an `Emitter` "emits" values of type a. A Source & a Producer (of a's) are the two other alternative but overloaded metaphors out there.
 --
 -- An Emitter "reaches into itself" for the value to emit, where itself is an opaque thing from the pov of usage.  An Emitter is named for its main action: it emits.
--- TODO: newtype Emitter g m a = Emitter { emit :: g (Either m a)}
+
+newtype Em g b c = Em { em :: g (Either c b)}
+
 newtype Emitter f a = Emitter
   { emit :: f (Maybe a)
   }
@@ -58,9 +71,14 @@ instance HFunctor Emitter where
 -- And either way, the committer is contravariant and the emitter covariant
 -- so it forms a profunctor.
 --
-data Shell f g c e = Shell
-  { committer :: Committer f c,
-    emitter :: Emitter g e
+data Shell f g a c = Shell
+  { committer :: Committer f a,
+    emitter :: Emitter g c
+  }
+
+data Sh f g a c = forall b. Sh
+  { c' :: Comm f a b,
+    e' :: Em g b c
   }
 
 hmap' :: (forall a. f a -> f' a) -> (forall a. g a -> g' a) -> Shell f g c e -> Shell f' g' c e
