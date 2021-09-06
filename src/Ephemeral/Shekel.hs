@@ -101,7 +101,7 @@ sinv xs = sum $ fmap (** -1) (zipWith (+) xs sc)
 -- | The shekel function applied to a list and roughly normalised to Range (-0.5) 0.5
 --
 -- >>> shekel [0.302, 0.412, 0.5]
--- 0.614769661738902
+-- 0.6147696617389021
 --
 shekel :: [Double] -> Double
 shekel = sinv . sdiff

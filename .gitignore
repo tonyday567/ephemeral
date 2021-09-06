@@ -5,3 +5,5 @@ TAGS
 **/.DS_Store
 /.hie/
 /cabal.project.local
+/.ghc.environment.*
+/cabal.project.local*

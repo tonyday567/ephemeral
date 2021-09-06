@@ -1,6 +1,5 @@
 packages:
   ephemeral.cabal
-  ../yaya/yaya.cabal
 
 -- package-id numhask-0.7.0.1-inplace
 -- https://github.com/haskell/cabal/issues/6087
