@@ -20,7 +20,7 @@ library
   exposed-modules:
     Ephemeral.Search
     Ephemeral.Shekel
-    Ephemeral.Shell
+    Ephemeral.Hughes
   hs-source-dirs:
     src
   default-extensions:
@@ -37,4 +37,6 @@ library
     base >= 4.7 && < 5,
     yaya,
     profunctors,
+    free,
+    numhask,
   default-language: Haskell2010

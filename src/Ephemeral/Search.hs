@@ -6,8 +6,6 @@
 {-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RebindableSyntax #-}
-{-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -23,6 +21,8 @@ import GHC.Generics
 import Data.Functor.Identity
 import Data.String
 import Data.Bool
+import Data.Foldable
+import GHC.Exts (fromListN)
 
 {- |
 A computer program is said to learn from experience E with respect to some task T and some performance measure P, if its performance on T, as measured by P, improves with experience E. ~ Tom Mitchell
@@ -190,35 +190,6 @@ value :: (Traversable p, Traversable e, Applicative e, Num a) =>
   (e (p a) -> p a) ->
   p a
 value (Population ps) (Experience es) f = f $ traverse (\p -> error' p <$> es) ps
-
--- * Some basics that will need to fit in with all of this
-limit_ :: (Ord a, Num a) => a -> [a] -> a
-limit_ _ [] = error ("empty" :: String)
-limit_ eps (x0:xs0) = go x0 xs0
-  where
-    go x [] = x
-    go x (x':xs) = bool (go x' xs) x' (abs (x - x') < eps)
-
--- >>> sqroot 2
--- 1.414213562373095
-sqroot a = limit_ (iterate next 1.0)
-  where
-    next x = (x + a/x) / 2
-
-deriv f x =
-  limit_ (map slope (iterate (/2) 1.0))
-  where
-    slope h = (f (x+h) - f x) / h
-
-integrate f a b x =
-  limit_ (map area (iterate (/2) 1.0))
-  where
-    area h = sum $ (h*) . f x <$> take (floor $ (b - a) / h) (iterate (+h) a)
-
--- | Hughes' improve idea
-improve' = undefined
--- A + B * h^n
--- A + B * (h/2)^n
 
 -- * complex convergence
 --

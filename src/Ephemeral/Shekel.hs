@@ -16,6 +16,7 @@ module Ephemeral.Shekel
   ) where
 
 import Prelude
+import GHC.Exts (fromListN)
 
 -- $setup
 --
