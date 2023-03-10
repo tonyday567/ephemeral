@@ -1,22 +1,20 @@
-{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE NegativeLiterals #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE RebindableSyntax #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Function with a tricky shape useful for testing.
 --
 -- See <https://en.wikipedia.org/wiki/Shekel_function>
---
 module Ephemeral.Shekel
   ( shekel,
     shekelp,
-  ) where
+  )
+where
 
 import Prelude
-import GHC.Exts (fromListN)
 
 -- $setup
 --
@@ -94,7 +92,7 @@ sc =
   ]
 
 sdiff :: [Double] -> [Double]
-sdiff xs = fmap ((sum . fmap (**2)) . zipWith (-) xs) sa
+sdiff xs = fmap ((sum . fmap (** 2)) . zipWith (-) xs) sa
 
 sinv :: [Double] -> Double
 sinv xs = sum $ fmap (** -1) (zipWith (+) xs sc)
@@ -103,7 +101,6 @@ sinv xs = sum $ fmap (** -1) (zipWith (+) xs sc)
 --
 -- >>> shekel [0.302, 0.412, 0.5]
 -- 0.6147696617389021
---
 shekel :: [Double] -> Double
 shekel = sinv . sdiff
 
@@ -111,7 +108,5 @@ shekel = sinv . sdiff
 --
 -- >>> shekelp (0.302, 0.412)
 -- 1.1945742676096427
---
 shekelp :: (Double, Double) -> Double
-shekelp (x,y) = sinv . sdiff $ [x,y]
-
+shekelp (x, y) = sinv . sdiff $ [x, y]

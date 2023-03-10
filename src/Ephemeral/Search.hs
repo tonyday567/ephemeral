@@ -4,8 +4,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NegativeLiterals #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -19,10 +17,7 @@ import Prelude
 import Data.Profunctor
 import GHC.Generics
 import Data.Functor.Identity
-import Data.String
 import Data.Bool
-import Data.Foldable
-import GHC.Exts (fromListN)
 
 {- |
 A computer program is said to learn from experience E with respect to some task T and some performance measure P, if its performance on T, as measured by P, improves with experience E. ~ Tom Mitchell
