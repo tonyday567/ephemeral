@@ -8,12 +8,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Ephemeral.Hughes where
 
 import Control.Comonad.Cofree
-import Data.Function
 import Data.Functor.Identity
 import NumHask.Prelude
 
@@ -29,44 +29,44 @@ data Hopes a = Confirmed a | Failed | Possible (Hopes a)
 -- type Cofree :: (Type -> Type) -> (Type -> Type)
 -- data Cofree f a = a :< f (Cofree f a)
 
-limit :: (Ord a, Subtractive a, Signed a) => a -> Cofree Identity a -> a
+limit :: (Ord a, Subtractive a, Absolute a) => a -> Cofree Identity a -> a
 limit eps (x0 :< Identity xs0) = go x0 xs0
   where
     go x (x' :< Identity xs) = bool (go x' xs) x' (abs (x - x') < eps)
 
 -- limitf :: (Ord a, Num a) => a -> Cofree Identity a -> a
-limitf :: (Ord a, Subtractive a, Signed a) => a -> Cofree Identity a -> a
+limitf :: (Ord a, Subtractive a, Absolute a) => a -> Cofree Identity a -> a
 limitf eps = fix (\rec (x :< Identity xs@(x' :< _)) -> bool (rec xs) x' (abs (x - x') < eps))
 
-approach :: (Ord a, Subtractive a, Signed a) => a -> (a -> a) -> a
+approach :: (Ord a, Subtractive a, Absolute a) => a -> (a -> a) -> a
 approach eps f = limit eps (coiter (Identity . f) one)
 
-approachf :: (Ord a, Subtractive a, Signed a) => a -> (a -> a) -> a
+approachf :: (Ord a, Subtractive a, Absolute a) => a -> (a -> a) -> a
 approachf eps f = limitf eps (coiter (Identity . f) one)
 
 sqrootStep :: (Additive a, Divisive a) => a -> a -> a
 sqrootStep a x = (x + a / x) / two
 
-sqroot'' :: (Ord a, Signed a, Field a) => a -> a -> a
+sqroot'' :: (Ord a, Absolute a, Field a) => a -> a -> a
 sqroot'' eps a = approach eps (sqrootStep a)
 
-sqrootf :: (Ord a, Signed a, Field a) => a -> a -> a
+sqrootf :: (Ord a, Absolute a, Field a) => a -> a -> a
 sqrootf eps a = approachf eps (sqrootStep a)
 
-approach' :: (Ord a, Signed a, Field a) => a -> (a -> a) -> a
+approach' :: (Ord a, Absolute a, Field a) => a -> (a -> a) -> a
 approach' eps f = limit_ eps (iterate f one)
 
-sqroot' :: (Ord a, Signed a, Field a) => a -> a -> a
+sqroot' :: (Ord a, Absolute a, Field a) => a -> a -> a
 sqroot' eps a = approach' eps (sqrootStep a)
 
-limit_ :: (Ord a, Signed a, Field a) => a -> [a] -> a
+limit_ :: (Ord a, Absolute a, Field a) => a -> [a] -> a
 limit_ _ [] = error ("empty" :: String)
 limit_ eps (x0 : xs0) = go x0 xs0
   where
     go x [] = x
     go x (x' : xs) = bool (go x' xs) x' (abs (x - x') < eps)
 
-limitm :: (Ord a, Signed a, Field a) => a -> [a] -> a
+limitm :: (Ord a, Absolute a, Field a) => a -> [a] -> a
 limitm _ [] = error ("empty" :: String)
 limitm eps (x0 : xs0) = go x0 xs0
   where
@@ -75,7 +75,7 @@ limitm eps (x0 : xs0) = go x0 xs0
 
 -- >>> sqroot 0.0001 2
 -- 1.4142135623746899
-sqroot :: (Ord a, Signed a, Field a) => a -> a -> a
+sqroot :: (Ord a, Absolute a, Field a) => a -> a -> a
 sqroot eps a = limit_ eps (iterate next one)
   where
     next x = (x + a / x) / two
@@ -86,7 +86,7 @@ sqroot eps a = limit_ eps (iterate next one)
 -- >>> deriv 0.00001 (sqroot 0.00001) 2
 -- 0.35354799598098907
 --
-deriv :: (Ord a, Signed a, Field a) => a -> (a -> a) -> a -> a
+deriv :: (Ord a, Absolute a, Field a) => a -> (a -> a) -> a -> a
 deriv eps f x =
   limit_ eps (map slope (iterate (/ two) one))
   where
@@ -97,13 +97,13 @@ deriv eps f x =
 -- >>> f x = x ** 1.5 / 1.5
 -- >>> f 2 - f 1
 -- 1.2189450960900354
-integrate :: (Ord a, Signed a, QuotientField a Int) => a -> (a -> a) -> a -> a -> a
+integrate :: (Ord a, Absolute a, QuotientField a, Whole a ~ Int) => a -> (a -> a) -> a -> a -> a
 integrate eps f a b =
   limit_ eps (map area (iterate (/ two) one))
   where
     area h = sum $ (h *) . f <$> take (floor $ (b - a) / h) (iterate (+ h) a)
 
-integrate' :: (Signed a, QuotientField a Int) => (a -> a) -> a -> a -> [a]
+integrate' :: (Absolute a, QuotientField a, Whole a ~ Int) => (a -> a) -> a -> a -> [a]
 integrate' f a b =
   map area (iterate (/ two) one)
   where
@@ -113,18 +113,18 @@ integrate' f a b =
 --
 -- A + B * h^n
 -- A + B * (h/2)^n
-improve :: (Signed a, Field a) => Int -> [a] -> [a]
+improve :: (Absolute a, Field a) => Int -> [a] -> [a]
 improve _ [] = []
 improve _ [x] = [x]
 improve n (a : b : rest) = (b * two ^ n - a) / (two ^ n - one) : improve n (b : rest)
 
 -- improveall :: (Fractional a, Num t) => t -> (Int -> [a] -> [a]) -> [Int -> [a] -> [a]]
-improveall :: (Signed a, Field a) => Int -> [a] -> [[a]]
+improveall :: (Absolute a, Field a) => Int -> [a] -> [[a]]
 improveall n s = s : improveall (n + 1) (improve n s)
 
 -- >>> limit_ 0.00000001 $ super (integrate' sin 0 4)
 -- 1.6536436208622662
-super :: (Signed a, Field a) => [a] -> [a]
+super :: (Absolute a, Field a) => [a] -> [a]
 super s = map head (improveall 1 s)
 
 -- | Newton-Raphson method for finding roots.
@@ -199,14 +199,14 @@ deriv' f x = (f (x + dx) - f x) / dx
 -- f a * f b < 0
 
 bisection ::
-  (Signed a, Field a, Ord a, Epsilon a, Field b, Ord b) =>
+  (Absolute a, Field a, Ord a, Epsilon a, Field b, Ord b) =>
   (a -> b) ->
   a ->
   a ->
   a
 bisection f a b = let av = (b + a) / two in bool (bool (bisection f av b) (bisection f a av) (f a * f av < zero)) av (b - a < epsilon)
 
-newton :: (Epsilon a, Signed a, Field a, Ord a) => (a -> a) -> (a -> a) -> a -> a
+newton :: (Epsilon a, Absolute a, Field a, Ord a) => (a -> a) -> (a -> a) -> a -> a
 newton f f' guess =
   let newGuess = guess - (f guess / f' guess)
       err = abs (newGuess - guess)
@@ -215,7 +215,7 @@ newton f f' guess =
 towardRoot :: (Field a) => (a -> a) -> (a -> a) -> a -> a
 towardRoot f f' x = x - f x / f' x
 
-secant :: (Epsilon a, Signed a, Field a, Ord a) => (a -> a) -> a -> a -> a
+secant :: (Epsilon a, Absolute a, Field a, Ord a) => (a -> a) -> a -> a -> a
 secant f guess1 guess0 =
   let newGuess = guess1 - f guess1 * (guess1 - guess0) / (f guess1 - f guess0)
       err = abs (newGuess - guess1)
