@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE RebindableSyntax #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -95,7 +92,7 @@ sdiff :: [Double] -> [Double]
 sdiff xs = fmap ((sum . fmap (** 2)) . zipWith (-) xs) sa
 
 sinv :: [Double] -> Double
-sinv xs = sum $ fmap (** -1) (zipWith (+) xs sc)
+sinv xs = sum $ fmap (** (-1)) (zipWith (+) xs sc)
 
 -- | The shekel function applied to a list and roughly normalised to Range (-0.5) 0.5
 --

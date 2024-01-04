@@ -1,16 +1,8 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NegativeLiterals #-}
-{-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-unused-binds #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
+-- | A computer program is said to learn from experience E with respect to some task T and some performance measure P, if its performance on T, as measured by P, improves with experience E. ~ Tom Mitchell
 module Ephemeral.Search where
 
 import Data.Bool
@@ -18,18 +10,6 @@ import Data.Functor.Identity
 import Data.Profunctor
 import GHC.Generics
 import Prelude
-
--- |
--- A computer program is said to learn from experience E with respect to some task T and some performance measure P, if its performance on T, as measured by P, improves with experience E. ~ Tom Mitchell
-
-{-
-I initial wrote this up as I was working through basic Machine Learning concepts.
-
-The end result seems to be an API focused on `composting`: on a mechanical process of reducing old, old data in massive quantities, to permanent statistic regularities that may explain the behaviour of living computations.
-
-So I'm sitting with it, contemplating how to abstract that out, and find another API.
-
--}
 
 -- | learning is to use experience to change the performance of a task.
 newtype Learn f e p = Learn {change :: (Foldable f) => Experience f e -> Task e p -> Task e p}

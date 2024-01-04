@@ -1,15 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RebindableSyntax #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Ephemeral.Hughes where
 
@@ -28,7 +19,6 @@ data Hopes a = Confirmed a | Failed | Possible (Hopes a)
 
 -- type Cofree :: (Type -> Type) -> (Type -> Type)
 -- data Cofree f a = a :< f (Cofree f a)
-
 limit :: (Ord a, Subtractive a, Absolute a) => a -> Cofree Identity a -> a
 limit eps (x0 :< Identity xs0) = go x0 xs0
   where
@@ -73,6 +63,8 @@ limitm eps (x0 : xs0) = go x0 xs0
     go x [] = x
     go x (x' : xs) = bool (go x' xs) x' (abs (x / x' - one) < eps)
 
+-- | sqroot limit_ test
+--
 -- >>> sqroot 0.0001 2
 -- 1.4142135623746899
 sqroot :: (Ord a, Absolute a, Field a) => a -> a -> a
@@ -80,23 +72,26 @@ sqroot eps a = limit_ eps (iterate next one)
   where
     next x = (x + a / x) / two
 
+-- | Find the derivative of a function at a point.
+--
 -- >>> deriv 0.00001 (\x -> x * x) 3
 -- 6.000007629394531
 --
 -- >>> deriv 0.00001 (sqroot 0.00001) 2
 -- 0.35354799598098907
---
 deriv :: (Ord a, Absolute a, Field a) => a -> (a -> a) -> a -> a
 deriv eps f x =
   limit_ eps (map slope (iterate (/ two) one))
   where
     slope h = (f (x + h) - f x) / h
 
+-- | Integrgrate a function over a range.
+--
 -- >>> integrate 0.00001 (sqroot 0.00001) 1 2
--- 1.2189450960900354
+-- 1.218945096090038
 -- >>> f x = x ** 1.5 / 1.5
 -- >>> f 2 - f 1
--- 1.2189450960900354
+-- 1.2189514164974602
 integrate :: (Ord a, Absolute a, QuotientField a, Whole a ~ Int) => a -> (a -> a) -> a -> a -> a
 integrate eps f a b =
   limit_ eps (map area (iterate (/ two) one))
