@@ -82,7 +82,7 @@
     #+end_src
 
     #+RESULTS:
-- [ ] cabal build --prefer-oldest
+- [X] cabal build --prefer-oldest
 
     #+begin_src sh :results output
     cabal build --prefer-oldest
@@ -108,7 +108,7 @@
     #+begin_src sh :results output
     cabal bench
     #+end_src
-- [ ] ormolu
+- [X] ormolu
 
   #+begin_src sh :results output
   ormolu --mode check $(git ls-files '*.hs')
@@ -121,7 +121,7 @@
   #+end_src
 
   #+RESULTS:
-- [ ] hlint
+- [X] hlint
   #+begin_src sh :results output
   hlint .
   #+end_src
