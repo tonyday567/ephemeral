@@ -1,2 +1,4 @@
 packages:
   ephemeral.cabal
+
+write-ghc-environment-files: always

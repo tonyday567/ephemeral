@@ -92,13 +92,13 @@ deriv eps f x =
 -- >>> f x = x ** 1.5 / 1.5
 -- >>> f 2 - f 1
 -- 1.2189514164974602
-integrate :: (Ord a, Absolute a, QuotientField a, Whole a ~ Int) => a -> (a -> a) -> a -> a -> a
+integrate :: (Ord a, Subtractive a, Absolute a, QuotientField a, Whole a ~ Int) => a -> (a -> a) -> a -> a -> a
 integrate eps f a b =
   limit_ eps (map area (iterate (/ two) one))
   where
     area h = sum $ (h *) . f <$> take (floor $ (b - a) / h) (iterate (+ h) a)
 
-integrate' :: (Absolute a, QuotientField a, Whole a ~ Int) => (a -> a) -> a -> a -> [a]
+integrate' :: (Subtractive a, Absolute a, QuotientField a, Whole a ~ Int) => (a -> a) -> a -> a -> [a]
 integrate' f a b =
   map area (iterate (/ two) one)
   where
