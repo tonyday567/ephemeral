@@ -17,7 +17,6 @@ tested-with:
     , GHC == 9.6.5
     , GHC == 9.8.2
 extra-doc-files:
-    ChangeLog.md
     readme.md
 
 source-repository head
@@ -46,6 +45,9 @@ library
         , free        >=5.2 && <5.3
         , numhask     >=0.11 && <0.13
         , profunctors >=5.6.2 && <5.7
+        , poker-fold
+        , perf
+        , harpie
     exposed-modules:
         Ephemeral.Hughes
         Ephemeral.Search
@@ -62,3 +64,33 @@ test-suite doctests
     default-extensions: RebindableSyntax
     ghc-options: -threaded
     type: exitcode-stdio-1.0
+
+common ghc-options-exe-stanza
+    ghc-options:
+        -fforce-recomp
+        -funbox-strict-fields
+        -rtsopts
+        -threaded
+        -with-rtsopts=-N
+
+executable ephemeral-poker
+    import: ghc-options-exe-stanza
+    import: ghc-options-stanza
+    import: ghc2021-stanza
+    main-is: ephemeral-poker.hs
+    hs-source-dirs: app
+    build-depends:
+        , base                 >=4.7 && <5
+        , optparse-applicative >=0.17 && <0.19
+        , moo >= 1.2
+        , ephemeral
+        , vector
+        , optics-core
+        , perf
+        , containers
+        , poker-fold
+        , harpie
+        , prettyprinter
+        , text
+        , formatn
+    ghc-options: -O2

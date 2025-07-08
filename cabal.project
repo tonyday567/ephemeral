@@ -1,4 +1,7 @@
 packages:
   ephemeral.cabal
+  ../poker-fold/poker-fold.cabal
+  ../perf/perf.cabal
+  ../moo/moo.cabal
 
 write-ghc-environment-files: always
